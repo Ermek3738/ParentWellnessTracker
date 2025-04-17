@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
         // Initialize WatchViewModel
         watchViewModel = ViewModelProvider(this)[WatchViewModel::class.java]
 
+        ActivityProvider.setCurrentActivity(this)
+
         // Set up WorkManager for periodic sync
         setupWatchSyncWorker()
         setupSamsungHealthSync()

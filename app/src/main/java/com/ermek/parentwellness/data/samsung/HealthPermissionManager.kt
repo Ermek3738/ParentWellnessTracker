@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import java.util.HashSet
 import android.os.Handler
 import android.os.Looper
+import com.samsung.android.sdk.healthdata.HealthConstants
 
 
 class HealthPermissionManager(private val healthDataStore: HealthDataStore) {
@@ -53,6 +54,7 @@ class HealthPermissionManager(private val healthDataStore: HealthDataStore) {
     }
 
     fun requestPermissions(dataTypes: Set<String>, callback: (Boolean) -> Unit) {
+        val activity = ActivityProvider.getCurrentActivity()
         // Always run permission requests on the main thread
         Handler(Looper.getMainLooper()).post {
             try {
@@ -72,7 +74,7 @@ class HealthPermissionManager(private val healthDataStore: HealthDataStore) {
                 Log.d(TAG, "Created permission keys: $permissionKeys")
 
                 // Request permissions with activity context (this is important!)
-                val resultHolder = permissionManager.requestPermissions(permissionKeys, null)
+                val resultHolder = permissionManager.requestPermissions(permissionKeys, activity)
 
                 resultHolder.setResultListener { result ->
                     // Result is already on the main thread

@@ -2,16 +2,17 @@ package com.ermek.parentwellness.data.repository
 
 import android.util.Log
 import com.ermek.parentwellness.data.model.User
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class AuthRepository {
-    private val auth = FirebaseAuth.getInstance()
-    private val firestore = FirebaseFirestore.getInstance()
+    private val auth = Firebase.auth
+    private val firestore = Firebase.firestore
     private val usersCollection = firestore.collection("users")
 
     private val TAG = "AuthRepository"
@@ -66,7 +67,6 @@ class AuthRepository {
         }
     }
 
-    // Example optimization for AuthRepository.kt
     suspend fun getCurrentUser(): User? {
         val firebaseUser = auth.currentUser ?: return null
         return withContext(Dispatchers.IO) {
@@ -96,6 +96,10 @@ class AuthRepository {
                 null
             }
         }
+    }
+
+    fun getCurrentUserId(): String? {
+        return auth.currentUser?.uid
     }
 
     fun signOut() {

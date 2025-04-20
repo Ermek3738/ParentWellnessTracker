@@ -1,19 +1,21 @@
 package com.ermek.parentwellness.ui.dashboard
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ermek.parentwellness.data.model.HealthData
 import com.ermek.parentwellness.data.model.User
 import com.ermek.parentwellness.data.repository.AuthRepository
-import com.ermek.parentwellness.data.repository.HealthRepository
+import com.ermek.parentwellness.data.samsung.SamsungHealthSensorManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class DashboardViewModel(
-    private val authRepository: AuthRepository = AuthRepository(),
-    private val healthRepository: HealthRepository = HealthRepository()
-) : ViewModel() {
+    application: Application
+) : AndroidViewModel(application) {
+
+    private val authRepository = AuthRepository()
+    private val sensorManager = SamsungHealthSensorManager(getApplication())
 
     private val _dashboardState = MutableStateFlow<DashboardState>(DashboardState.Loading)
     val dashboardState: StateFlow<DashboardState> = _dashboardState
@@ -21,49 +23,64 @@ class DashboardViewModel(
     private val _user = MutableStateFlow<User?>(null)
     val user: StateFlow<User?> = _user
 
-    private val _healthData = MutableStateFlow<List<HealthData>>(emptyList())
-    val healthData: StateFlow<List<HealthData>> = _healthData
+    private val _heartRate = MutableStateFlow<Int?>(null)
+    val heartRate: StateFlow<Int?> = _heartRate
+
+    private val _stepCount = MutableStateFlow<Int?>(null)
+    val stepCount: StateFlow<Int?> = _stepCount
 
     init {
         loadUserData()
-        loadHealthData()
+        initializeHealthSensors()
     }
 
     private fun loadUserData() {
         viewModelScope.launch {
             try {
                 val currentUser = authRepository.getCurrentUser()
-                if (currentUser != null) {
-                    _user.value = currentUser
-                } else {
-                    _dashboardState.value = DashboardState.Error("Failed to load user data")
-                }
+                _user.value = currentUser
+                _dashboardState.value = DashboardState.Success
             } catch (e: Exception) {
-                _dashboardState.value = DashboardState.Error(e.message ?: "An error occurred")
+                _dashboardState.value = DashboardState.Error(e.localizedMessage ?: "Unknown error")
             }
         }
     }
 
-    private fun loadHealthData() {
+    private fun initializeHealthSensors() {
         viewModelScope.launch {
-            _dashboardState.value = DashboardState.Loading
-            healthRepository.getLatestHealthData()
-                .onSuccess { data ->
-                    _healthData.value = data
-                    _dashboardState.value = DashboardState.Success
+            try {
+                sensorManager.initialize()
+
+                sensorManager.getHeartRateListener().heartRateData.collect { data ->
+                    _heartRate.value = data?.heartRate
                 }
-                .onFailure {
-                    _dashboardState.value = DashboardState.Error(it.message ?: "Failed to load health data")
+
+                sensorManager.getStepsListener().stepsData.collect { data ->
+                    _stepCount.value = data?.stepCount
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
     fun refreshData() {
-        loadHealthData()
+        viewModelScope.launch {
+            try {
+                sensorManager.refreshAllSensorData()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun signOut() {
         authRepository.signOut()
+    }
+
+    override fun onCleared() {
+        sensorManager.cleanup()
+        super.onCleared()
     }
 }
 

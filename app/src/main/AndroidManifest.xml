@@ -5,30 +5,31 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Location permissions -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-
     <!-- Background work permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Samsung Health SDK permissions -->
+    <!-- Samsung Health Sensor API permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-
-    <!-- For Android 12+ Bluetooth permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
-    <!-- Required for Samsung Health SDK -->
     <uses-permission android:name="com.samsung.android.health.permission.READ" />
+    <uses-permission android:name="com.samsung.android.health.permission.WRITE" />
 
-    <!-- Package visibility workaround for Android 11+ -->
-<!--    <queries tools:targetApi="33">-->
-<!--            <package android:name="com.sec.android.app.shealth" />-->
-<!--    </queries>-->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Package visibility for Samsung Health app -->
+    <queries>
+        <package android:name="com.samsung.android.service.health" />
+        <package android:name="com.samsung.android.app.health" />
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -40,16 +41,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ParentWellness">
 
-        <!-- Add Google Play Services version metadata -->
-        <meta-data
-            android:name="com.google.android.gms.version"
-            android:value="@integer/google_play_services_version"
-            />
-
-        <!-- Samsung Health App Connection Component -->
+        <!-- Samsung Health Service Component -->
         <meta-data
             android:name="com.samsung.android.health.permission.read"
-            android:value="com.samsung.health.blood_pressure;com.samsung.health.blood_glucose;com.samsung.health.step_count;com.samsung.health.heart_rate" />
+            android:value="com.samsung.health.heart_rate;com.samsung.health.step_count" />
+
         <activity
             android:name=".MainActivity"
             android:enableOnBackInvokedCallback="true"
@@ -61,7 +57,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Work Manager initialization -->
+        <!-- Health Sync Worker -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"

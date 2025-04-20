@@ -2,14 +2,15 @@ package com.ermek.parentwellness.data.repository
 
 import android.util.Log
 import com.ermek.parentwellness.data.model.User
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.tasks.await
 
 class ProfileRepository {
-    private val auth = FirebaseAuth.getInstance()
-    private val firestore = FirebaseFirestore.getInstance()
+    private val auth = Firebase.auth
+    private val firestore = Firebase.firestore
     private val usersCollection = firestore.collection("users")
 
     private val TAG = "ProfileRepository"
@@ -35,7 +36,7 @@ class ProfileRepository {
             if (user.gender.isNotEmpty()) updates["gender"] = user.gender
             if (user.birthDate.isNotEmpty()) updates["birthDate"] = user.birthDate
             if (user.phoneNumber.isNotEmpty()) updates["phoneNumber"] = user.phoneNumber
-            if (!user.profilePictureUrl.isNullOrEmpty()) updates["profilePictureUrl"] = user.profilePictureUrl
+            if (user.profilePictureUrl.isNotEmpty()) updates["profilePictureUrl"] = user.profilePictureUrl
 
             // Check if document exists
             val docRef = usersCollection.document(userId)

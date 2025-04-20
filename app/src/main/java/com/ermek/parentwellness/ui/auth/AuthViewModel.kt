@@ -47,8 +47,9 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
     fun signIn(email: String, password: String) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            repository.signIn(email, password)
-                .onSuccess { firebaseUser ->
+            try {
+                val result = repository.signIn(email, password)
+                if (result.isSuccess) {
                     val user = repository.getCurrentUser()
                     _authState.value = when {
                         user == null -> AuthState.Unauthenticated
@@ -56,31 +57,42 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
                             AuthState.NeedsSetup(user)
                         else -> AuthState.Authenticated(user)
                     }
-                }
-                .onFailure { error ->
-                    Log.e("AuthViewModel", "Sign in failed", error)
+                } else {
+                    val exception = result.exceptionOrNull()
+                    Log.e("AuthViewModel", "Sign in failed (Ask Gemini)", exception)
                     _authState.value = AuthState.Unauthenticated
                 }
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "Sign in failed with exception (Ask Gemini)", e)
+                _authState.value = AuthState.Unauthenticated
+            }
         }
     }
 
     fun signUp(email: String, password: String, name: String, isParent: Boolean) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            repository.signUp(email, password, name, isParent)
-                .onSuccess { firebaseUser ->
+            try {
+                val result = repository.signUp(email, password, name, isParent)
+                if (result.isSuccess) {
                     val user = repository.getCurrentUser()
-                    _authState.value = AuthState.NeedsSetup(user ?: User(
-                        id = firebaseUser.uid,
+                    val userId = repository.getCurrentUserId() ?: ""
+                    val setupUser = user ?: User(
+                        id = userId,
                         email = email,
                         fullName = name,
                         isParent = isParent
-                    ))
-                }
-                .onFailure { error ->
-                    Log.e("AuthViewModel", "Sign up failed", error)
+                    )
+                    _authState.value = AuthState.NeedsSetup(setupUser)
+                } else {
+                    val exception = result.exceptionOrNull()
+                    Log.e("AuthViewModel", "Sign up failed (Ask Gemini)", exception)
                     _authState.value = AuthState.Unauthenticated
                 }
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "Sign up failed with exception (Ask Gemini)", e)
+                _authState.value = AuthState.Unauthenticated
+            }
         }
     }
 

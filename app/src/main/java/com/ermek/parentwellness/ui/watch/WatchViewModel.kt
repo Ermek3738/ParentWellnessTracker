@@ -4,136 +4,111 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.*
-import com.ermek.parentwellness.data.model.WatchData
-import com.ermek.parentwellness.data.repository.WatchRepository
-import com.ermek.parentwellness.data.samsung.SamsungHealthConnectionStatus
-import com.ermek.parentwellness.data.worker.HealthSyncWorker
-import kotlinx.coroutines.flow.*
+import com.ermek.parentwellness.data.samsung.SamsungHealthSensorManager
+import com.ermek.parentwellness.data.samsung.SensorConnectionManager.ConnectionState
+import com.ermek.parentwellness.data.samsung.listeners.HeartRateSensorListener
+import com.ermek.parentwellness.data.samsung.models.HeartRateData
+import com.ermek.parentwellness.data.samsung.models.StepsData
+import com.samsung.android.service.health.tracking.HealthTrackerException
+import com.samsung.android.service.health.tracking.data.HealthTrackerType
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
-import android.content.Intent
-import kotlinx.coroutines.delay
-/**
- * UI state for watch screen
- */
-data class WatchUiState(
-    val isLoading: Boolean = false,
-    val watchData: WatchData = WatchData.empty(),
-    val connectionStatus: String = "Disconnected",
-    val error: String? = null,
-    val permissionsGranted: Boolean = false,
-    val diagnosticInfo: String? = null
-)
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * ViewModel for Watch screen
+ * ViewModel for Watch Screen to handle Samsung Health Sensor data
  */
 class WatchViewModel(application: Application) : AndroidViewModel(application) {
-    companion object {
-        private const val TAG = "WatchViewModel"
 
-        // WorkManager sync constants
-        private const val SYNC_WORK_NAME = "health_sync_work"
-        private const val SYNC_INTERVAL_MINUTES = 30L // 30 minutes
-    }
+    private val tag = "WatchViewModel"
 
-    // Watch repository
-    private val watchRepository = WatchRepository(application)
+    // Samsung Health Sensor Manager
+    private val sensorManager = SamsungHealthSensorManager(application)
 
-    // UI state
-    private val _uiState = MutableStateFlow(WatchUiState(isLoading = true))
-    val uiState: StateFlow<WatchUiState> = _uiState.asStateFlow()
+    // Heart rate data state
+    private val _heartRateState = MutableStateFlow<HeartRateState>(HeartRateState.Loading)
+    val heartRateState: StateFlow<HeartRateState> = _heartRateState.asStateFlow()
 
+    // Steps data state
+    private val _stepsState = MutableStateFlow<StepsState>(StepsState.Loading)
+    val stepsState: StateFlow<StepsState> = _stepsState.asStateFlow()
+
+    // Connection state
+    private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+    val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+
+    // Initialization state
+    private val _isInitialized = MutableStateFlow(false)
+    val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
+
+    // Init block to setup the ViewModel
     init {
-        Log.d(TAG, "Initializing WatchViewModel")
-        initializeSamsungHealth()
-        observeConnectionStatus()
-        observeWatchData()
-        observeErrorMessages()
+        initialize()
     }
 
     /**
-     * Initialize Samsung Health connection
+     * Initialize Samsung Health Sensor integration
      */
-    private fun initializeSamsungHealth() {
+    private fun initialize() {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "Initializing Samsung Health connection")
-                _uiState.update {
-                    it.copy(
-                        isLoading = true,
-                        diagnosticInfo = "Initializing Samsung Health connection..."
-                    )
-                }
+                // Initialize sensor manager
+                sensorManager.initialize()
 
-                watchRepository.initialize()
+                // Observe connection state
+                observeConnectionState()
+
+                // Observe heart rate data
+                observeHeartRateData()
+
+                // Observe steps data
+                observeStepsData()
+
+                _isInitialized.value = true
+
+                Log.d(tag, "Samsung Health Sensor integration initialized")
             } catch (e: Exception) {
-                Log.e(TAG, "Error initializing Samsung Health: ${e.message}", e)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "Failed to initialize Samsung Health: ${e.message}",
-                        diagnosticInfo = "Exception: ${e.message}\n${e.stackTraceToString()}"
-                    )
-                }
+                Log.e(tag, "Error initializing Samsung Health integration: ${e.message}")
+                _connectionState.value = ConnectionState.Error(e)
             }
         }
     }
 
     /**
-     * Observe connection status changes
+     * Observe connection state from the sensor manager
      */
-    private fun observeConnectionStatus() {
+    private fun observeConnectionState() {
         viewModelScope.launch {
-            watchRepository.connectionStatus.collect { status ->
-                Log.d(TAG, "Connection status changed: $status")
+            sensorManager.getConnectionManager().connectionState.collectLatest { state ->
+                _connectionState.value = state
 
-                val statusText = when (status) {
-                    SamsungHealthConnectionStatus.DISCONNECTED -> "Disconnected"
-                    SamsungHealthConnectionStatus.CONNECTING -> "Connecting..."
-                    SamsungHealthConnectionStatus.CONNECTED -> "Connected"
-                    SamsungHealthConnectionStatus.CONNECTION_FAILED -> "Connection Failed"
-                    SamsungHealthConnectionStatus.PERMISSIONS_REQUIRED -> "Permissions Required"
-                }
+                // Update UI states based on connection state
+                when (state) {
+                    is ConnectionState.Connected -> {
+                        Log.d(tag, "Connected to Samsung Health")
 
-                _uiState.update {
-                    it.copy(
-                        connectionStatus = statusText,
-                        diagnosticInfo = "Connection status: $statusText"
-                    )
-                }
+                        // Check if required sensors are available
+                        checkSensorAvailability()
+                    }
+                    is ConnectionState.Error -> {
+                        Log.e(tag, "Error connecting to Samsung Health: ${state.exception.message}")
 
-                // Update permissions status based on connection status
-                if (status == SamsungHealthConnectionStatus.CONNECTED) {
-                    _uiState.update { it.copy(permissionsGranted = true) }
-                    checkPermissionsAndRefresh()
-                } else if (status == SamsungHealthConnectionStatus.PERMISSIONS_REQUIRED) {
-                    _uiState.update { it.copy(permissionsGranted = false) }
-                }
+                        // Update UI states with errors
+                        _heartRateState.value = HeartRateState.Error("Connection error")
+                        _stepsState.value = StepsState.Error("Connection error")
+                    }
+                    is ConnectionState.ResolutionRequired -> {
+                        Log.w(tag, "Resolution required: ${state.exception.errorCode}")
 
-                // Schedule periodic sync when connected and permissions granted
-                if (status == SamsungHealthConnectionStatus.CONNECTED &&
-                    uiState.value.permissionsGranted) {
-                    schedulePeriodicSync()
-                }
-            }
-        }
-    }
-
-    /**
-     * Observe error messages from the repository
-     */
-    private fun observeErrorMessages() {
-        viewModelScope.launch {
-            watchRepository.errorMessages.collect { errorMsg ->
-                if (errorMsg != null) {
-                    Log.e(TAG, "Error from repository: $errorMsg")
-                    _uiState.update {
-                        it.copy(
-                            error = errorMsg,
-                            diagnosticInfo = "Error message: $errorMsg"
-                        )
+                        // We'll handle this in the UI
+                    }
+                    else -> {
+                        // Connecting or disconnected - keep loading state
                     }
                 }
             }
@@ -141,234 +116,172 @@ class WatchViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Observe watch data changes
+     * Check if the required sensors are available
      */
-    private fun observeWatchData() {
+    private fun checkSensorAvailability() {
+        // Check heart rate sensor availability
+        if (sensorManager.isSensorAvailable(HealthTrackerType.HEART_RATE)) {
+            Log.d(tag, "Heart rate sensor is available")
+        } else {
+            Log.w(tag, "Heart rate sensor is not available")
+            _heartRateState.value = HeartRateState.Error("Heart rate sensor not available")
+        }
+
+        // Check steps sensor availability - we use a different approach now
+        // since PEDOMETER isn't directly available as a constant
+        if (sensorManager.availableSensors.value.any {
+                it.name.contains("STEP", ignoreCase = true) ||
+                        it.name.contains("PEDOMETER", ignoreCase = true) ||
+                        it == HealthTrackerType.ACCELEROMETER
+            }) {
+            Log.d(tag, "Steps sensor is available")
+        } else {
+            Log.w(tag, "Steps sensor is not available")
+            _stepsState.value = StepsState.Error("Steps sensor not available")
+        }
+    }
+
+    /**
+     * Observe heart rate data from the sensor
+     */
+    private fun observeHeartRateData() {
         viewModelScope.launch {
-            watchRepository.watchData.collect { data ->
-                Log.d(TAG, "Watch data updated: $data")
-                _uiState.update {
-                    it.copy(
-                        watchData = data,
-                        isLoading = false
+            sensorManager.getHeartRateListener().heartRateData.collectLatest { data ->
+                if (data != null) {
+                    // Format timestamp
+                    val date = Date(data.timestamp)
+                    val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                    val formattedTime = dateFormat.format(date)
+
+                    // Update state with data
+                    _heartRateState.value = HeartRateState.Success(
+                        heartRate = data.heartRate,
+                        timestamp = formattedTime,
+                        isAbnormal = data.isAbnormal
                     )
+
+                    Log.d(tag, "Heart rate data updated: ${data.heartRate} bpm")
+                }
+            }
+        }
+
+        // Also observe alerts
+        viewModelScope.launch {
+            sensorManager.getHeartRateListener().heartRateAlert.collectLatest { alert ->
+                if (alert != null) {
+                    // Handle alert in UI
+                    when (alert) {
+                        is HeartRateSensorListener.HeartRateAlert.HighHeartRate -> {
+                            Log.w(tag, "High heart rate alert: ${alert.data.heartRate} bpm")
+                            // Update UI with alert
+                        }
+                        is HeartRateSensorListener.HeartRateAlert.LowHeartRate -> {
+                            Log.w(tag, "Low heart rate alert: ${alert.data.heartRate} bpm")
+                            // Update UI with alert
+                        }
+                    }
                 }
             }
         }
     }
 
     /**
-     * Request Samsung Health permissions
+     * Observe steps data from the sensor
      */
-    fun requestPermissions() {
+    private fun observeStepsData() {
         viewModelScope.launch {
-            Log.d(TAG, "Requesting Samsung Health permissions")
-            _uiState.update {
-                it.copy(
-                    isLoading = true,
-                    error = null,
-                    diagnosticInfo = "Requesting permissions..."
-                )
+            sensorManager.getStepsListener().stepsData.collectLatest { data ->
+                if (data != null) {
+                    // Format timestamp
+                    val date = Date(data.timestamp)
+                    val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                    val formattedTime = dateFormat.format(date)
+
+                    // Update state with data
+                    _stepsState.value = StepsState.Success(
+                        steps = data.stepCount,
+                        dailyGoal = data.dailyGoal,
+                        progress = data.getProgressPercentage(),
+                        timestamp = formattedTime
+                    )
+
+                    Log.d(tag, "Steps data updated: ${data.stepCount} steps")
+                }
             }
+        }
 
-            try {
-                val granted = watchRepository.requestPermissions()
-                Log.d(TAG, "Permission request result: $granted")
-
-                _uiState.update {
-                    it.copy(
-                        permissionsGranted = granted,
-                        isLoading = false,
-                        error = if (!granted) "Permission denied by user" else null,
-                        diagnosticInfo = "Permission request result: $granted"
-                    )
-                }
-
-                if (granted) {
-                    refreshWatchData()
-                    schedulePeriodicSync()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error requesting permissions: ${e.message}", e)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "Failed to request permissions: ${e.message}",
-                        diagnosticInfo = "Exception during permission request: ${e.message}\n${e.stackTraceToString()}"
-                    )
+        // Also observe inactivity alerts
+        viewModelScope.launch {
+            sensorManager.getStepsListener().inactivityAlert.collectLatest { alert ->
+                if (alert != null) {
+                    Log.w(tag, "Inactivity alert: ${alert.inactiveDurationMinutes} minutes")
+                    // Update UI with alert
                 }
             }
         }
     }
 
     /**
-     * Check permissions and refresh watch data if granted
+     * Manually refresh watch data
      */
-    private fun checkPermissionsAndRefresh() {
-        viewModelScope.launch {
-            Log.d(TAG, "Checking permissions and refreshing data")
-
-            when (watchRepository.connectionStatus.value) {
-                SamsungHealthConnectionStatus.PERMISSIONS_REQUIRED -> {
-                    Log.d(TAG, "Permissions required")
-                    _uiState.update {
-                        it.copy(
-                            permissionsGranted = false,
-                            diagnosticInfo = "Permissions check result: required"
-                        )
-                    }
-                }
-                SamsungHealthConnectionStatus.CONNECTED -> {
-                    Log.d(TAG, "Connected and permissions granted")
-                    _uiState.update {
-                        it.copy(
-                            permissionsGranted = true,
-                            diagnosticInfo = "Permissions check result: granted"
-                        )
-                    }
-                    refreshWatchData()
-                }
-                else -> {
-                    Log.d(TAG, "Connection status not ready for data: ${watchRepository.connectionStatus.value}")
-                    // Do nothing for other states
-                }
-            }
-        }
-    }
-
-    /**
-     * Refresh watch data from Samsung Health
-     * @param forceRefresh Whether to force a refresh ignoring cache
-     */
-    fun refreshWatchData(forceRefresh: Boolean = false) {
-        viewModelScope.launch {
-            Log.d(TAG, "Refreshing watch data, force=$forceRefresh")
-            _uiState.update {
-                it.copy(
-                    isLoading = true,
-                    error = null,
-                    diagnosticInfo = "Refreshing watch data..."
-                )
-            }
-
-            try {
-                val success = watchRepository.refreshWatchData(forceRefresh)
-                Log.d(TAG, "Data refresh result: $success")
-
-                if (!success) {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = "Failed to refresh watch data",
-                            diagnosticInfo = "Data refresh failed"
-                        )
-                    }
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            diagnosticInfo = "Data refresh successful"
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error refreshing watch data: ${e.message}", e)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "Error refreshing data: ${e.message}",
-                        diagnosticInfo = "Exception during data refresh: ${e.message}\n${e.stackTraceToString()}"
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * Schedule periodic background sync
-     */
-    private fun schedulePeriodicSync() {
-        Log.d(TAG, "Scheduling periodic health sync")
-
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val syncRequest = PeriodicWorkRequestBuilder<HealthSyncWorker>(
-            SYNC_INTERVAL_MINUTES, TimeUnit.MINUTES
-        )
-            .setConstraints(constraints)
-            .setBackoffCriteria(
-                BackoffPolicy.LINEAR,
-                WorkRequest.MIN_BACKOFF_MILLIS,
-                TimeUnit.MILLISECONDS
-            )
-            .build()
-
-        WorkManager.getInstance(getApplication())
-            .enqueueUniquePeriodicWork(
-                SYNC_WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
-                syncRequest
-            )
-
-        Log.d(TAG, "Periodic health sync scheduled")
-    }
-
-
-    fun launchSamsungHealth() {
+    fun refreshWatchData() {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "Attempting to launch Samsung Health app...")
-                val intent = getApplication<Application>().packageManager
-                    .getLaunchIntentForPackage("com.sec.android.app.shealth")
-
-                if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    getApplication<Application>().startActivity(intent)
-                    Log.d(TAG, "Samsung Health app launched successfully")
-
-                    // Wait a moment before requesting permissions
-                    delay(2000) // Wait 2 seconds
-                    Log.d(TAG, "Requesting permissions after Samsung Health launch")
-                    requestPermissions()
-                } else {
-                    Log.e(TAG, "Could not create intent for Samsung Health")
-                    _uiState.update {
-                        it.copy(
-                            error = "Could not launch Samsung Health app",
-                            diagnosticInfo = "Failed to create intent for Samsung Health. Please install Samsung Health from Galaxy Store."
-                        )
-                    }
-                }
+                Log.d(tag, "Manually refreshing watch data")
+                sensorManager.refreshAllSensorData()
             } catch (e: Exception) {
-                Log.e(TAG, "Error launching Samsung Health: ${e.message}", e)
-                _uiState.update {
-                    it.copy(
-                        error = "Failed to launch Samsung Health app: ${e.message}",
-                        diagnosticInfo = "Exception when launching Samsung Health: ${e.message}"
-                    )
-                }
+                Log.e(tag, "Error refreshing watch data: ${e.message}")
             }
         }
     }
 
-
     /**
-     * Stop background sync
+     * Resolve Samsung Health connection issues
+     * (This should be called from UI with an activity context)
      */
-    fun stopBackgroundSync() {
-        Log.d(TAG, "Stopping background sync")
-
-        WorkManager.getInstance(getApplication())
-            .cancelUniqueWork(SYNC_WORK_NAME)
-
-        Log.d(TAG, "Periodic health sync canceled")
+    fun resolveConnectionIssue(activity: android.app.Activity) {
+        val currentState = _connectionState.value
+        if (currentState is ConnectionState.ResolutionRequired) {
+            try {
+                currentState.exception.resolve(activity)
+            } catch (e: Exception) {
+                Log.e(tag, "Error resolving connection issue: ${e.message}")
+            }
+        }
     }
 
+    /**
+     * Clean up resources when ViewModel is cleared
+     */
     override fun onCleared() {
         super.onCleared()
-        Log.d(TAG, "ViewModel being cleared, cleaning up resources")
-        watchRepository.cleanup()
+        sensorManager.cleanup()
+    }
+
+    /**
+     * Heart rate state for UI
+     */
+    sealed class HeartRateState {
+        object Loading : HeartRateState()
+        data class Success(
+            val heartRate: Int,
+            val timestamp: String,
+            val isAbnormal: Boolean = false
+        ) : HeartRateState()
+        data class Error(val message: String) : HeartRateState()
+    }
+
+    /**
+     * Steps state for UI
+     */
+    sealed class StepsState {
+        object Loading : StepsState()
+        data class Success(
+            val steps: Int,
+            val dailyGoal: Int,
+            val progress: Int,
+            val timestamp: String
+        ) : StepsState()
+        data class Error(val message: String) : StepsState()
     }
 }

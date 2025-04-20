@@ -2,15 +2,45 @@ package com.ermek.parentwellness.ui.dashboard
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Opacity
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Support
+import androidx.compose.material.icons.filled.Watch
+import androidx.compose.material.icons.filled.Water
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,12 +50,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ermek.parentwellness.data.model.User
 import com.ermek.parentwellness.ui.dashboard.components.HealthMetricCard
 import com.ermek.parentwellness.ui.dashboard.components.MeasurementListItem
-import com.ermek.parentwellness.ui.theme.*
-
-// Import the correct User class
-import com.ermek.parentwellness.data.model.User
+import com.ermek.parentwellness.ui.theme.PrimaryLightRed
+import com.ermek.parentwellness.ui.theme.PrimaryRed
+import com.ermek.parentwellness.ui.theme.White
 
 @Composable
 fun DashboardScreen(
@@ -34,15 +64,16 @@ fun DashboardScreen(
     onNavigateToBloodPressure: () -> Unit,
     onNavigateToBloodSugar: () -> Unit,
     onNavigateToProfile: () -> Unit,
-    onNavigateToStepsTracker: () -> Unit = {},  // Make optional
-    onNavigateToReports: () -> Unit = {},       // Make optional
-    onNavigateToAddMeasurement: () -> Unit = {}, // Make optional
+    onNavigateToStepsTracker: () -> Unit = {},
+    onNavigateToReports: () -> Unit = {},
+    onNavigateToAddMeasurement: () -> Unit = {},
     onNavigateToAlerts: () -> Unit = {},
-    onNavigateToWatch: () -> Unit = {}         // Add this parameter for Watch navigation
+    onNavigateToWatch: () -> Unit = {}
 ) {
     val dashboardState by viewModel.dashboardState.collectAsState()
     val user by viewModel.user.collectAsState()
-    val healthData by viewModel.healthData.collectAsState()
+    val heartRate by viewModel.heartRate.collectAsState()
+    val stepCount by viewModel.stepCount.collectAsState()
 
     Scaffold(
         bottomBar = {
@@ -140,11 +171,13 @@ fun DashboardScreen(
                 is DashboardState.Success -> {
                     DashboardContent(
                         user = user,
+                        heartRate = heartRate,
+                        stepCount = stepCount,
                         onNavigateToHeartRate = onNavigateToHeartRate,
                         onNavigateToBloodPressure = onNavigateToBloodPressure,
                         onNavigateToBloodSugar = onNavigateToBloodSugar,
                         onNavigateToStepsTracker = onNavigateToStepsTracker,
-                        onNavigateToWatch = onNavigateToWatch  // Pass the parameter
+                        onNavigateToWatch = onNavigateToWatch
                     )
                 }
 
@@ -167,11 +200,13 @@ fun DashboardScreen(
 @Composable
 fun DashboardContent(
     user: User?,
+    heartRate: Int?,
+    stepCount: Int?,
     onNavigateToHeartRate: () -> Unit,
     onNavigateToBloodPressure: () -> Unit,
     onNavigateToBloodSugar: () -> Unit,
     onNavigateToStepsTracker: () -> Unit,
-    onNavigateToWatch: () -> Unit  // Add this parameter
+    onNavigateToWatch: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -220,17 +255,17 @@ fun DashboardContent(
 
         // Greeting
         Text(
-            text = "Hello, ${if (user?.fullName.isNullOrEmpty()) "there" else user.fullName}! 👋",
+            text = "Hello, ${user?.fullName ?: "there"}! 👋",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Heart Rate Card
+        // Heart Rate Card - Now showing actual data from Samsung Health Sensor
         HealthMetricCard(
             title = "Heart Rate",
-            value = "72",
+            value = heartRate?.toString() ?: "--",
             subtitle = "BPM",
             backgroundColor = PrimaryLightRed,
             icon = {
@@ -362,7 +397,7 @@ fun DashboardContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Steps Tracker Card (replacing Weight & BMI)
+            // Steps Tracker Card - Now showing actual step count from Samsung Health Sensor
             Card(
                 modifier = Modifier
                     .weight(1f)
@@ -390,7 +425,7 @@ fun DashboardContent(
                             )
 
                             Text(
-                                text = "8,467",
+                                text = stepCount?.toString() ?: "--",
                                 style = MaterialTheme.typography.displaySmall,
                                 fontWeight = FontWeight.Bold
                             )
@@ -496,12 +531,12 @@ fun DashboardContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Sample measurement item - in a real app, loop through recent measurements
+        // Heart rate measurement with actual data from Samsung Health Sensor
         MeasurementListItem(
-            value = "76",
-            label = "Sitting",
+            value = heartRate?.toString() ?: "--",
+            label = "Heart Rate",
             status = "Normal",
-            time = "Today, 9:41 AM",
+            time = "Just now",
             onClick = onNavigateToHeartRate
         )
 
@@ -509,7 +544,7 @@ fun DashboardContent(
 
         MeasurementListItem(
             value = "120/80",
-            label = "Relaxing",
+            label = "Blood Pressure",
             status = "Normal",
             time = "Today, 8:30 AM",
             onClick = onNavigateToBloodPressure
@@ -519,7 +554,7 @@ fun DashboardContent(
     }
 }
 
-// Add the WatchIntegrationCard composable function
+// Watch Integration Card
 @Composable
 fun WatchIntegrationCard(onNavigate: () -> Unit) {
     Card(

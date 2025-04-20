@@ -1,8 +1,11 @@
 package com.ermek.parentwellness
 
+import android.app.Application
+import com.google.firebase.auth.FirebaseAuth
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -10,7 +13,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -19,8 +24,8 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.ermek.parentwellness.data.samsung.SamsungHealthConnector
-import com.ermek.parentwellness.data.worker.HealthSyncWorker
+import com.ermek.parentwellness.data.samsung.SamsungHealthSensorManager
+import com.ermek.parentwellness.data.samsung.workers.SensorSyncWorker
 import com.ermek.parentwellness.ui.alerts.AlertsScreen
 import com.ermek.parentwellness.ui.auth.AuthState
 import com.ermek.parentwellness.ui.auth.AuthViewModel
@@ -48,25 +53,34 @@ import com.ermek.parentwellness.ui.setup.SetupWelcomeScreen
 import com.ermek.parentwellness.ui.theme.ParentWellnessTheme
 import com.ermek.parentwellness.ui.watch.WatchScreen
 import com.ermek.parentwellness.ui.watch.WatchViewModel
-import com.google.firebase.auth.FirebaseAuth
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
 
-    private val auth = FirebaseAuth.getInstance()
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private lateinit var watchViewModel: WatchViewModel
+    private lateinit var samsungHealthSensorManager: SamsungHealthSensorManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize WatchViewModel
-        watchViewModel = ViewModelProvider(this)[WatchViewModel::class.java]
+        // Enable edge-to-edge display
+        enableEdgeToEdge()
 
+        // Store current activity reference (for Samsung Health SDK resolution)
         ActivityProvider.setCurrentActivity(this)
 
+        // Initialize Samsung Health Sensor Manager
+        samsungHealthSensorManager = SamsungHealthSensorManager(applicationContext)
+
+        // Initialize WatchViewModel with proper factory
+        watchViewModel = ViewModelProvider(
+            this,
+            ViewModelProvider.AndroidViewModelFactory(application)
+        )[WatchViewModel::class.java]
+
         // Set up WorkManager for periodic sync
-        setupWatchSyncWorker()
-        setupSamsungHealthSync()
+        setupSensorSyncWorker()
 
         setContent {
             ParentWellnessTheme {
@@ -190,7 +204,11 @@ class MainActivity : ComponentActivity() {
 
                         // Main App Screens
                         composable("dashboard") {
-                            val dashboardViewModel = DashboardViewModel()
+                            val context = LocalContext.current
+                            val dashboardViewModel: DashboardViewModel = viewModel(
+                                factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                            )
+
                             DashboardScreen(
                                 viewModel = dashboardViewModel,
                                 onNavigateToHeartRate = {
@@ -285,7 +303,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Watch Screen - Updated to use Samsung Health integration
+                        // Watch Screen - Updated to use Samsung Health Sensor integration
                         composable("watch") {
                             WatchScreen(
                                 viewModel = watchViewModel,
@@ -348,28 +366,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Set up Samsung Health sync using WorkManager for background processing
+     * Set up Sensor sync worker for background processing
      */
-    private fun setupSamsungHealthSync() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val syncRequest = PeriodicWorkRequestBuilder<HealthSyncWorker>(
-            30, TimeUnit.MINUTES
-        )
-            .setConstraints(constraints)
-            .build()
-
-        WorkManager.getInstance(this)
-            .enqueueUniquePeriodicWork(
-                "samsung_health_sync_work",
-                ExistingPeriodicWorkPolicy.KEEP,
-                syncRequest
-            )
-    }
-
-    private fun setupWatchSyncWorker() {
+    private fun setupSensorSyncWorker() {
         // Only set up the worker if the user is logged in
         if (auth.currentUser != null) {
             // Define work constraints
@@ -377,9 +376,9 @@ class MainActivity : ComponentActivity() {
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
 
-            // Create periodic work request - sync every 15 minutes
-            val workRequest = PeriodicWorkRequestBuilder<HealthSyncWorker>(
-                15, TimeUnit.MINUTES,
+            // Create periodic work request - sync every 30 minutes
+            val workRequest = PeriodicWorkRequestBuilder<SensorSyncWorker>(
+                30, TimeUnit.MINUTES,
                 5, TimeUnit.MINUTES // Flex period
             )
                 .setConstraints(constraints)
@@ -387,7 +386,7 @@ class MainActivity : ComponentActivity() {
 
             // Enqueue the work
             WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-                "health_sync_worker",
+                "samsung_health_sensor_sync",
                 ExistingPeriodicWorkPolicy.UPDATE,
                 workRequest
             )
@@ -402,5 +401,39 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Refresh watch data when activity is resumed
         watchViewModel.refreshWatchData()
+    }
+
+    /**
+     * Clean up resources when activity is destroyed
+     */
+    override fun onDestroy() {
+        super.onDestroy()
+        // Clean up activity reference
+        ActivityProvider.clearCurrentActivity(this)
+
+        // Clean up Samsung Health Sensor Manager resources
+        samsungHealthSensorManager.cleanup()
+    }
+}
+
+/**
+ * Utility class to hold the current activity reference
+ * Used for Samsung Health SDK resolution
+ */
+object ActivityProvider {
+    private var currentActivity: ComponentActivity? = null
+
+    fun setCurrentActivity(activity: ComponentActivity) {
+        currentActivity = activity
+    }
+
+    fun getCurrentActivity(): ComponentActivity? {
+        return currentActivity
+    }
+
+    fun clearCurrentActivity(activity: ComponentActivity) {
+        if (currentActivity == activity) {
+            currentActivity = null
+        }
     }
 }

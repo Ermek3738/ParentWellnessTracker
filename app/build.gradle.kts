@@ -62,9 +62,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
-    // Samsung Health SDK (direct implementation as it's a local file)
-    implementation(files("libs/samsung-health-data-1.5.1.aar"))
-
+    // Samsung Health SDK (direct implementation as it's a local file
+//    implementation(files("libs/samsung-health-data-1.5.1.aar"))
+    implementation(files("libs/samsung-health-sensor-api-v1.3.0.aar"))
+    implementation ("androidx.health.connect:connect-client:1.0.0-alpha02")
     // Other Samsung Health related dependencies from version catalog
     implementation(libs.androidx.health.connect)
     implementation(libs.moshi.kotlin)

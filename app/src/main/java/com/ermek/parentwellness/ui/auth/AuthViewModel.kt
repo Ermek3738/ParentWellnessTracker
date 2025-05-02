@@ -5,12 +5,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ermek.parentwellness.data.model.User
 import com.ermek.parentwellness.data.repository.AuthRepository
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.lang.SecurityException
 
 class AuthViewModel(private val repository: AuthRepository = AuthRepository()) : ViewModel() {
+    private val TAG = "AuthViewModel"
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
@@ -24,22 +30,24 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
             // Set loading state temporarily
             _authState.value = AuthState.Loading
 
-            if (repository.isUserLoggedIn()) {
-                try {
+            try {
+                repository.debugAuthInfo() // Add this debug method to AuthRepository
+
+                if (repository.isUserLoggedIn()) {
                     val user = repository.getCurrentUser()
                     _authState.value = when {
-                        user == null -> AuthState.Unauthenticated
+                        user == null -> AuthState.Error("Failed to retrieve user profile.")
                         // Add more specific checks for setup completion
                         user.fullName.isBlank() || user.gender.isBlank() || user.birthDate.isBlank() ->
                             AuthState.NeedsSetup(user)
                         else -> AuthState.Authenticated(user)
                     }
-                } catch (e: Exception) {
-                    Log.e("AuthViewModel", "Error checking current user", e)
+                } else {
                     _authState.value = AuthState.Unauthenticated
                 }
-            } else {
-                _authState.value = AuthState.Unauthenticated
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking current user", e)
+                _authState.value = AuthState.Error("Error checking authentication state: ${e.localizedMessage ?: "Unknown error"}")
             }
         }
     }
@@ -52,19 +60,21 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
                 if (result.isSuccess) {
                     val user = repository.getCurrentUser()
                     _authState.value = when {
-                        user == null -> AuthState.Unauthenticated
+                        user == null -> AuthState.Error("Login successful but failed to retrieve user data.")
                         user.fullName.isBlank() || user.gender.isBlank() || user.birthDate.isBlank() ->
                             AuthState.NeedsSetup(user)
                         else -> AuthState.Authenticated(user)
                     }
                 } else {
                     val exception = result.exceptionOrNull()
-                    Log.e("AuthViewModel", "Sign in failed (Ask Gemini)", exception)
-                    _authState.value = AuthState.Unauthenticated
+                    val errorMessage = getAuthErrorMessage(exception)
+                    Log.e(TAG, "Sign in failed: $errorMessage", exception)
+                    _authState.value = AuthState.Error(errorMessage)
                 }
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "Sign in failed with exception (Ask Gemini)", e)
-                _authState.value = AuthState.Unauthenticated
+                val errorMessage = getAuthErrorMessage(e)
+                Log.e(TAG, "Sign in failed with exception: $errorMessage", e)
+                _authState.value = AuthState.Error(errorMessage)
             }
         }
     }
@@ -81,24 +91,54 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
                         id = userId,
                         email = email,
                         fullName = name,
-                        isParent = isParent
+                        isParent = isParent,
+                        caregiverIds = emptyList(),
+                        parentIds = emptyList()
                     )
                     _authState.value = AuthState.NeedsSetup(setupUser)
                 } else {
                     val exception = result.exceptionOrNull()
-                    Log.e("AuthViewModel", "Sign up failed (Ask Gemini)", exception)
-                    _authState.value = AuthState.Unauthenticated
+                    val errorMessage = getAuthErrorMessage(exception)
+                    Log.e(TAG, "Sign up failed: $errorMessage", exception)
+                    _authState.value = AuthState.Error(errorMessage)
                 }
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "Sign up failed with exception (Ask Gemini)", e)
-                _authState.value = AuthState.Unauthenticated
+                val errorMessage = getAuthErrorMessage(e)
+                Log.e(TAG, "Sign up failed with exception: $errorMessage", e)
+                _authState.value = AuthState.Error(errorMessage)
             }
         }
     }
 
     fun signOut() {
-        repository.signOut()
-        _authState.value = AuthState.Unauthenticated
+        try {
+            repository.signOut()
+            _authState.value = AuthState.Unauthenticated
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during sign out", e)
+            _authState.value = AuthState.Error("Failed to sign out: ${e.localizedMessage ?: "Unknown error"}")
+        }
+    }
+
+    fun retryAuthentication() {
+        checkCurrentUser()
+    }
+
+    private fun getAuthErrorMessage(exception: Throwable?): String {
+        return when (exception) {
+            is FirebaseAuthInvalidCredentialsException -> "Invalid email or password."
+            is FirebaseAuthInvalidUserException -> "User does not exist or has been disabled."
+            is FirebaseAuthUserCollisionException -> "An account already exists with this email."
+            is FirebaseNetworkException -> "Network error. Please check your connection."
+            is SecurityException -> {
+                if (exception.message?.contains("Unknown calling package") == true) {
+                    "Firebase authentication configuration error. Please contact support."
+                } else {
+                    "Security error: ${exception.localizedMessage ?: "Unknown"}"
+                }
+            }
+            else -> exception?.localizedMessage ?: "Authentication failed. Please try again."
+        }
     }
 }
 

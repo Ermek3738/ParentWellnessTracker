@@ -39,7 +39,7 @@ class WatchViewModel(application: Application) : AndroidViewModel(application) {
     val stepsState: StateFlow<StepsState> = _stepsState.asStateFlow()
 
     // Connection state
-    private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+        private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     // Initialization state

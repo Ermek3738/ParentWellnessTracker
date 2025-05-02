@@ -1,6 +1,5 @@
 package com.ermek.parentwellness.ui.caregiver
 
-import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +9,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -80,6 +81,15 @@ fun ManageParentsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.ErrorOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(64.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Text(
                         text = "Error: $error",
                         color = MaterialTheme.colorScheme.error,
@@ -88,13 +98,34 @@ fun ManageParentsScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+
+                    if (error!!.contains("not registered as a parent")) {
+                        Text(
+                            text = "Make sure the user has created an account as a parent. They can change their role in their profile settings.",
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+
                     Button(
                         onClick = { viewModel.loadParentsForCurrentUser() },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = PrimaryRed
                         )
                     ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("Retry")
+                    }
+
+                    TextButton(
+                        onClick = { /* Open help documentation */ }
+                    ) {
+                        Text("Learn More")
                     }
                 }
             } else if (parents.isEmpty()) {

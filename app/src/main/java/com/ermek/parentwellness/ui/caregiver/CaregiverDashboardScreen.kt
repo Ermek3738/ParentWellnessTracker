@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.ShowChart
@@ -33,6 +34,7 @@ fun CaregiverDashboardScreen(
     onNavigateToBloodPressure: () -> Unit,
     onNavigateToBloodSugar: () -> Unit,
     onNavigateToStepsTracker: () -> Unit,
+    onSwitchToParentMode: () -> Unit = {},
     viewModel: CaregiverViewModel = viewModel()
 ) {
     val parents by viewModel.parents.collectAsState()
@@ -50,6 +52,12 @@ fun CaregiverDashboardScreen(
             TopAppBar(
                 title = { Text("Caregiver Dashboard") },
                 actions = {
+                    IconButton(onClick = onSwitchToParentMode) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.CompareArrows,
+                            contentDescription = "Switch to Parent Mode"
+                        )
+                    }
                     IconButton(onClick = onNavigateToManageParents) {
                         Icon(Icons.Default.People, contentDescription = "Manage Parents")
                     }

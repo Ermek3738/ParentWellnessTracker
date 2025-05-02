@@ -11,7 +11,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,20 +20,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ermek.parentwellness.data.model.HealthData
+import com.ermek.parentwellness.ui.components.DualLineChart
 import com.ermek.parentwellness.ui.components.MetricType
-import com.ermek.parentwellness.ui.components.SimpleLineChart
+import com.ermek.parentwellness.ui.components.StatisticItem
 import com.ermek.parentwellness.ui.theme.PrimaryRed
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StepsTrackerScreen(
+fun BloodPressureScreen(
     onBack: () -> Unit,
     viewModel: HealthViewModel = viewModel()
 ) {
     // State variables
-    val stepsData by viewModel.stepsData.collectAsState()
+    val bloodPressureData by viewModel.bloodPressureData.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
@@ -43,15 +43,15 @@ fun StepsTrackerScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
 
-    // Load steps data when the screen appears
+    // Load blood pressure data when the screen appears
     LaunchedEffect(Unit) {
-        viewModel.loadHealthData(HealthData.TYPE_STEPS)
+        viewModel.loadHealthData(HealthData.TYPE_BLOOD_PRESSURE)
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Steps Tracker") },
+                title = { Text("Blood Pressure") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -70,14 +70,14 @@ fun StepsTrackerScreen(
                             DropdownMenuItem(
                                 text = { Text("Generate Test Data") },
                                 onClick = {
-                                    viewModel.generateSimulatedData(HealthData.TYPE_STEPS, 20)
+                                    viewModel.generateSimulatedData(HealthData.TYPE_BLOOD_PRESSURE, 20)
                                     showOptionsMenu = false
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text("Refresh Data") },
                                 onClick = {
-                                    viewModel.loadHealthData(HealthData.TYPE_STEPS)
+                                    viewModel.loadHealthData(HealthData.TYPE_BLOOD_PRESSURE)
                                     showOptionsMenu = false
                                 }
                             )
@@ -103,7 +103,7 @@ fun StepsTrackerScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Add Steps",
+                    contentDescription = "Add Blood Pressure Reading",
                     tint = Color.White
                 )
             }
@@ -141,7 +141,7 @@ fun StepsTrackerScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(
-                            onClick = { viewModel.loadHealthData(HealthData.TYPE_STEPS) },
+                            onClick = { viewModel.loadHealthData(HealthData.TYPE_BLOOD_PRESSURE) },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = PrimaryRed
                             )
@@ -158,8 +158,8 @@ fun StepsTrackerScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
-                    // Daily steps summary
-                    StepsSummary(stepsData)
+                    // Blood pressure statistics
+                    BloodPressureStatistics(bloodPressureData)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -185,7 +185,7 @@ fun StepsTrackerScreen(
                         Tab(
                             selected = selectedTab == 1,
                             onClick = { selectedTab = 1 },
-                            text = { Text("History (${stepsData.size})") }
+                            text = { Text("History (${bloodPressureData.size})") }
                         )
                     }
 
@@ -194,34 +194,22 @@ fun StepsTrackerScreen(
                     // Content based on selected tab
                     if (selectedTab == 0) {
                         // Statistics tab
-                        StepsChart(stepsData)
+                        BloodPressureChart(bloodPressureData)
 
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                            text = "Daily Activity",
+                            text = "Blood Pressure Categories",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        StepsDailyGoalProgress(stepsData)
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        Text(
-                            text = "Activity Insights",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        ActivityInsights()
+                        BloodPressureCategories()
                     } else {
                         // History tab
-                        if (stepsData.isEmpty()) {
+                        if (bloodPressureData.isEmpty()) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -232,7 +220,7 @@ fun StepsTrackerScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = "No steps data available",
+                                        text = "No blood pressure data available",
                                         style = MaterialTheme.typography.bodyLarge
                                     )
 
@@ -254,10 +242,10 @@ fun StepsTrackerScreen(
                                 }
                             }
                         } else {
-                            StepsHistory(
-                                stepsData = stepsData,
+                            BloodPressureHistory(
+                                bloodPressureData = bloodPressureData,
                                 onDeleteEntry = { id ->
-                                    viewModel.deleteHealthData(id, HealthData.TYPE_STEPS)
+                                    viewModel.deleteHealthData(id, HealthData.TYPE_BLOOD_PRESSURE)
                                 }
                             )
                         }
@@ -265,10 +253,10 @@ fun StepsTrackerScreen(
                 }
             }
 
-            // Add steps dialog
+            // Add blood pressure dialog
             if (showAddDialog) {
                 HealthDataEntryDialog(
-                    metricType = MetricType.STEPS,
+                    metricType = MetricType.BLOOD_PRESSURE,
                     onDismiss = { showAddDialog = false },
                     onSubmit = { entry ->
                         viewModel.saveHealthData(entry)
@@ -280,75 +268,41 @@ fun StepsTrackerScreen(
 }
 
 @Composable
-fun StepsSummary(stepsData: List<HealthData>) {
-    // Get today's steps (or most recent)
-    val todaySteps = stepsData
-        .firstOrNull()
-        ?.primaryValue?.toInt() ?: 0
+fun BloodPressureStatistics(bloodPressureData: List<HealthData>) {
+    val avgSystolic = if (bloodPressureData.isNotEmpty()) {
+        bloodPressureData.map { it.primaryValue }.average().toInt()
+    } else {
+        0
+    }
 
-    // Daily goal - default is 10,000 steps
-    val dailyGoal = 10000
+    val avgDiastolic = if (bloodPressureData.isNotEmpty()) {
+        bloodPressureData.mapNotNull { it.secondaryValue }.average().toInt()
+    } else {
+        0
+    }
 
-    // Calculate progress percentage
-    val progressPercentage = (todaySteps.toFloat() / dailyGoal).coerceIn(0f, 1f)
+    val avgPulse = if (bloodPressureData.isNotEmpty()) {
+        // Pulse is typically calculated as heart rate which we don't have
+        // This is just a placeholder
+        70
+    } else {
+        0
+    }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFF5F5F5)
-        ),
-        shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalArrangement = Arrangement.SpaceAround
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.DirectionsWalk,
-                contentDescription = "Steps",
-                tint = PrimaryRed,
-                modifier = Modifier.size(40.dp)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "$todaySteps",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Text(
-                text = "steps today",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            LinearProgressIndicator(
-                progress = { progressPercentage },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(12.dp)
-                    .clip(RoundedCornerShape(6.dp)),
-                color = PrimaryRed,
-                trackColor = Color.LightGray
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "${(progressPercentage * 100).toInt()}% of daily goal",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-        }
+        StatisticItem(value = avgSystolic.toString(), label = "Systolic")
+        StatisticItem(value = avgDiastolic.toString(), label = "Diastolic")
+        StatisticItem(value = avgPulse.toString(), label = "Pulse")
     }
 }
 
 @Composable
-fun StepsChart(stepsData: List<HealthData>) {
+fun BloodPressureChart(bloodPressureData: List<HealthData>) {
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -359,7 +313,7 @@ fun StepsChart(stepsData: List<HealthData>) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Steps Count",
+                text = "Blood Pressure (mmHg)",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -367,29 +321,17 @@ fun StepsChart(stepsData: List<HealthData>) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Chart using our SimpleLineChart component
-        SimpleLineChart(
-            data = stepsData,
-            lineColor = Color(0xFFFF9800), // Orange
-            showPoints = true
+        // Chart using our DualLineChart component
+        DualLineChart(
+            data = bloodPressureData,
+            primaryLineColor = Color.Red,  // Systolic
+            secondaryLineColor = Color.Blue // Diastolic
         )
     }
 }
 
 @Composable
-fun StepsDailyGoalProgress(stepsData: List<HealthData>) {
-    // Get weekly average
-    val weeklyAverage = if (stepsData.size >= 7) {
-        stepsData.take(7).map { it.primaryValue }.average().toInt()
-    } else if (stepsData.isNotEmpty()) {
-        stepsData.map { it.primaryValue }.average().toInt()
-    } else {
-        0
-    }
-
-    // Daily goal - default is 10,000 steps
-    val dailyGoal = 10000
-
+fun BloodPressureCategories() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -400,142 +342,43 @@ fun StepsDailyGoalProgress(stepsData: List<HealthData>) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "Weekly Average: $weeklyAverage steps",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold
+            BPCategoryRow(
+                category = "Normal",
+                range = "Less than 120/80 mmHg",
+                color = Color.Green
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            DailyGoalProgressRow(
-                day = "Monday",
-                steps = stepsData.getOrNull(6)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
+            BPCategoryRow(
+                category = "Elevated",
+                range = "120-129/<80 mmHg",
+                color = Color(0xFFFFC107) // Amber
             )
 
-            DailyGoalProgressRow(
-                day = "Tuesday",
-                steps = stepsData.getOrNull(5)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Wednesday",
-                steps = stepsData.getOrNull(4)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Thursday",
-                steps = stepsData.getOrNull(3)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Friday",
-                steps = stepsData.getOrNull(2)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Saturday",
-                steps = stepsData.getOrNull(1)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Sunday",
-                steps = stepsData.getOrNull(0)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-        }
-    }
-}
-
-@Composable
-fun DailyGoalProgressRow(
-    day: String,
-    steps: Int,
-    goal: Int
-) {
-    val progressPercentage = (steps.toFloat() / goal).coerceIn(0f, 1f)
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = day,
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Text(
-                text = "$steps steps",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        LinearProgressIndicator(
-            progress = { progressPercentage },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp)),
-            color = PrimaryRed,
-            trackColor = Color.LightGray
-        )
-    }
-}
-
-@Composable
-fun ActivityInsights() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            InsightRow(
-                title = "Daily Goal",
-                description = "Aim for 10,000 steps per day for good health",
-                color = Color(0xFF4CAF50) // Green
-            )
-
-            InsightRow(
-                title = "Consistency",
-                description = "Walk regularly throughout the day, not all at once",
-                color = Color(0xFF2196F3) // Blue
-            )
-
-            InsightRow(
-                title = "Progress",
-                description = "Gradually increase your step count if you're just starting",
+            BPCategoryRow(
+                category = "High (Stage 1)",
+                range = "130-139/80-89 mmHg",
                 color = Color(0xFFFF9800) // Orange
             )
 
-            InsightRow(
-                title = "Benefits",
-                description = "Regular walking improves heart health and mood",
-                color = Color(0xFF9C27B0) // Purple
+            BPCategoryRow(
+                category = "High (Stage 2)",
+                range = "140+/90+ mmHg",
+                color = Color.Red
+            )
+
+            BPCategoryRow(
+                category = "Crisis",
+                range = "180+/120+ mmHg",
+                color = Color(0xFF8B0000) // Dark red
             )
         }
     }
 }
 
 @Composable
-fun InsightRow(
-    title: String,
-    description: String,
+fun BPCategoryRow(
+    category: String,
+    range: String,
     color: Color
 ) {
     Row(
@@ -552,13 +395,13 @@ fun InsightRow(
 
         Column {
             Text(
-                text = title,
+                text = category,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
-                text = description,
+                text = range,
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
@@ -567,14 +410,14 @@ fun InsightRow(
 }
 
 @Composable
-fun StepsHistory(
-    stepsData: List<HealthData>,
+fun BloodPressureHistory(
+    bloodPressureData: List<HealthData>,
     onDeleteEntry: (String) -> Unit
 ) {
     Column {
-        stepsData.forEach { data ->
-            StepsHistoryItem(
-                stepsData = data,
+        bloodPressureData.forEach { data ->
+            BloodPressureHistoryItem(
+                bloodPressureData = data,
                 onDelete = { onDeleteEntry(data.id) }
             )
 
@@ -584,16 +427,15 @@ fun StepsHistory(
 }
 
 @Composable
-fun StepsHistoryItem(
-    stepsData: HealthData,
+fun BloodPressureHistoryItem(
+    bloodPressureData: HealthData,
     onDelete: () -> Unit
 ) {
-    val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    val formattedDate = dateFormat.format(Date(stepsData.timestamp))
+    val dateFormat = SimpleDateFormat("MMM dd, yyyy • HH:mm", Locale.getDefault())
+    val formattedDate = dateFormat.format(Date(bloodPressureData.timestamp))
 
-    val steps = stepsData.primaryValue.toInt()
-    val dailyGoal = 10000
-    val progressPercentage = (steps.toFloat() / dailyGoal * 100).toInt().coerceIn(0, 100)
+    val systolic = bloodPressureData.primaryValue.toInt()
+    val diastolic = bloodPressureData.secondaryValue?.toInt() ?: 0
 
     Row(
         modifier = Modifier
@@ -601,19 +443,21 @@ fun StepsHistoryItem(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Steps icon
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFFFF9800).copy(alpha = 0.2f)),
-            contentAlignment = Alignment.Center
+        // Blood pressure values
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(60.dp)
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.DirectionsWalk,
-                contentDescription = "Steps",
-                tint = Color(0xFFFF9800),
-                modifier = Modifier.size(24.dp)
+            Text(
+                text = "$systolic",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryRed
+            )
+            Text(
+                text = "$diastolic",
+                style = MaterialTheme.typography.bodyLarge,
+                color = PrimaryRed
             )
         }
 
@@ -624,47 +468,46 @@ fun StepsHistoryItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "$steps steps",
+                    text = bloodPressureData.situation,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Progress percentage
+                // Status tag
+                val (statusText, statusColor) = when {
+                    systolic < 120 && diastolic < 80 -> "Normal" to Color.Green
+                    systolic in 120..129 && diastolic < 80 -> "Elevated" to Color(0xFFFFC107) // Amber
+                    (systolic in 130..139 || diastolic in 80..89) -> "Stage 1" to Color(0xFFFF9800) // Orange
+                    (systolic >= 140 || diastolic >= 90) -> "Stage 2" to Color.Red
+                    (systolic >= 180 || diastolic >= 120) -> "Crisis" to Color(0xFF8B0000) // Dark red
+                    else -> "Unknown" to Color.Gray
+                }
+
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            when {
-                                progressPercentage >= 100 -> Color.Green.copy(alpha = 0.2f)
-                                progressPercentage >= 70 -> Color(0xFFFF9800).copy(alpha = 0.2f)
-                                else -> Color.Gray.copy(alpha = 0.2f)
-                            }
-                        )
+                        .background(statusColor.copy(alpha = 0.2f))
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = "$progressPercentage%",
+                        text = statusText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = when {
-                            progressPercentage >= 100 -> Color.Green
-                            progressPercentage >= 70 -> Color(0xFFFF9800)
-                            else -> Color.Gray
-                        }
+                        color = statusColor
                     )
                 }
             }
 
             Text(
-                text = formattedDate,
+                text = "$formattedDate",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
 
-            if (stepsData.notes.isNotEmpty()) {
+            if (bloodPressureData.notes.isNotEmpty()) {
                 Text(
-                    text = "Note: ${stepsData.notes}",
+                    text = "Note: ${bloodPressureData.notes}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )

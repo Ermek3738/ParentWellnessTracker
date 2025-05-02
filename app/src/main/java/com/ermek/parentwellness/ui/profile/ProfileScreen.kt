@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,7 +24,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ermek.parentwellness.data.model.User
 import com.ermek.parentwellness.ui.theme.PrimaryRed
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,6 +32,8 @@ fun ProfileScreen(
     onSignOut: () -> Unit,
     onEditProfile: () -> Unit,
     onNavigateToManageCaregivers: () -> Unit,
+    onSwitchRole: () -> Unit = {},
+    showRoleSwitcher: Boolean = false,
     viewModel: ProfileViewModel = viewModel()
 ) {
     // State to hold user data
@@ -127,6 +129,11 @@ fun ProfileScreen(
                     color = Color.Gray
                 )
 
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Role badge instead of simple text
+                RoleBadge(isParent = user.isParent)
+
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Personal Info Card
@@ -190,6 +197,30 @@ fun ProfileScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // Role switcher (only shown if user has both roles)
+                if (showRoleSwitcher) {
+                    Button(
+                        onClick = onSwitchRole,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (user.isParent) Color.Blue else PrimaryRed
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.CompareArrows,
+                            contentDescription = "Switch Role",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Switch to ${if (user.isParent) "Caregiver" else "Parent"} Mode",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
 
                 // Health Settings Card
                 Card(
@@ -265,18 +296,14 @@ fun ProfileScreen(
                             subtitle = "Manage your Samsung Galaxy Watch4"
                         )
 
-                        SettingsItem(
-                            icon = Icons.Default.People,
-                            title = "Caregivers",
-                            subtitle = "Manage connected caregivers"
-                        )
-
-                        SettingsItem(
-                            icon = Icons.Default.People,
-                            title = "Manage Caregivers",
-                            subtitle = "Add or remove people who can monitor your health",
-                            onClick = onNavigateToManageCaregivers
-                        )
+                        if (user.isParent) {
+                            SettingsItem(
+                                icon = Icons.Default.People,
+                                title = "Manage Caregivers",
+                                subtitle = "Add or remove people who can monitor your health",
+                                onClick = onNavigateToManageCaregivers
+                            )
+                        }
                     }
                 }
 
@@ -337,6 +364,41 @@ fun ProfileScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun RoleBadge(isParent: Boolean) {
+    val (backgroundColor, contentColor, text) = if (isParent) {
+        Triple(PrimaryRed.copy(alpha = 0.1f), PrimaryRed, "Parent")
+    } else {
+        Triple(Color.Blue.copy(alpha = 0.1f), Color.Blue, "Caregiver")
+    }
+
+    Surface(
+        modifier = Modifier
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = backgroundColor
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (isParent) Icons.Default.Person else Icons.Default.Favorite,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

@@ -11,6 +11,7 @@ data class User(
     @set:PropertyName("isParent")
     var isParent: Boolean = true,
 
+    // We can keep this for backward compatibility
     @get:PropertyName("parent")
     @set:PropertyName("parent")
     var isParentAlternate: Boolean = true,
@@ -21,11 +22,18 @@ data class User(
     val phoneNumber: String = "",
     val profilePictureUrl: String = "",
 
-    // New fields for caregiver relationships
-    val caregiverIds: List<String> = emptyList(),
-    val parentIds: List<String> = emptyList(),
+    // Relationship fields
+    var caregiverIds: List<String> = emptyList(),
+    var parentIds: List<String> = emptyList(),
 
-    val createdAt: Long = 0
+    // Health data permissions - for caregivers to access parent data
+    val healthDataPermissions: Map<String, List<String>> = mapOf(),
+
+    // Emergency contact information
+    val emergencyContact: EmergencyContact? = null,
+
+    val createdAt: Long = 0,
+    val updatedAt: Long = 0
 )
 
 data class UserProfile(
@@ -37,4 +45,11 @@ data class UserProfile(
     val profilePictureUrl: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
+)
+
+data class EmergencyContact(
+    val name: String = "",
+    val relationship: String = "",
+    val phoneNumber: String = "",
+    val email: String = ""
 )

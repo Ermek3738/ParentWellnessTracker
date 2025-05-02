@@ -10,12 +10,12 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -24,6 +24,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.ermek.parentwellness.data.model.User
 import com.ermek.parentwellness.data.samsung.SamsungHealthSensorManager
 import com.ermek.parentwellness.data.samsung.workers.SensorSyncWorker
 import com.ermek.parentwellness.ui.alerts.AlertsScreen
@@ -40,11 +41,13 @@ import com.ermek.parentwellness.ui.health.BloodPressureScreen
 import com.ermek.parentwellness.ui.health.BloodSugarScreen
 import com.ermek.parentwellness.ui.health.HeartRateScreen
 import com.ermek.parentwellness.ui.health.StepsTrackerScreen
+import com.ermek.parentwellness.ui.health.HealthViewModel
 import com.ermek.parentwellness.ui.onboarding.OnboardingScreen
 import com.ermek.parentwellness.ui.profile.EditProfileScreen
 import com.ermek.parentwellness.ui.profile.ProfileScreen
 import com.ermek.parentwellness.ui.profile.ProfileViewModel
 import com.ermek.parentwellness.ui.reports.ReportsScreen
+import com.ermek.parentwellness.ui.role.RoleSelectionScreen
 import com.ermek.parentwellness.ui.setup.SetupBirthdayScreen
 import com.ermek.parentwellness.ui.setup.SetupGenderScreen
 import com.ermek.parentwellness.ui.setup.SetupNameScreen
@@ -92,9 +95,33 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     val authState by authViewModel.authState.collectAsState()
 
+                    // State to track user mode (parent or caregiver)
+                    var currentUser by remember { mutableStateOf<User?>(null) }
+
+                    // Update user data when authState changes
+                    LaunchedEffect(authState) {
+                        if (authState is AuthState.Authenticated) {
+                            currentUser = (authState as AuthState.Authenticated).user
+                        } else if (authState is AuthState.NeedsSetup) {
+                            currentUser = (authState as AuthState.NeedsSetup).user
+                        }
+                    }
+
                     // Determine starting destination based on authentication state
                     val startDestination = when (authState) {
-                        is AuthState.Authenticated -> "dashboard"
+                        is AuthState.Authenticated -> {
+                            val user = (authState as AuthState.Authenticated).user
+                            if (user.isParent && user.parentIds.isNotEmpty()) {
+                                // User has both roles - show role selection
+                                "role_selection"
+                            } else if (user.isParent) {
+                                // User is a parent
+                                "dashboard"
+                            } else {
+                                // User is a caregiver
+                                "caregiver_dashboard"
+                            }
+                        }
                         is AuthState.NeedsSetup -> "setup_welcome"
                         else -> "onboarding"
                     }
@@ -103,6 +130,22 @@ class MainActivity : ComponentActivity() {
                         navController = navController,
                         startDestination = startDestination
                     ) {
+                        // Role selection screen
+                        composable("role_selection") {
+                            RoleSelectionScreen(
+                                onSelectParentRole = {
+                                    navController.navigate("dashboard") {
+                                        popUpTo("role_selection") { inclusive = true }
+                                    }
+                                },
+                                onSelectCaregiverRole = {
+                                    navController.navigate("caregiver_dashboard") {
+                                        popUpTo("role_selection") { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
+
                         // Onboarding Flow
                         composable("onboarding") {
                             OnboardingScreen(
@@ -127,8 +170,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onLoginSuccess = {
                                     when (authState) {
-                                        is AuthState.Authenticated -> navController.navigate("dashboard") {
-                                            popUpTo("onboarding") { inclusive = true }
+                                        is AuthState.Authenticated -> {
+                                            val user = (authState as AuthState.Authenticated).user
+                                            navigateBasedOnRole(navController, user)
                                         }
                                         is AuthState.NeedsSetup -> navController.navigate("setup_welcome")
                                         else -> {}
@@ -147,8 +191,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onRegistrationSuccess = {
                                     when (authState) {
-                                        is AuthState.Authenticated -> navController.navigate("dashboard") {
-                                            popUpTo("onboarding") { inclusive = true }
+                                        is AuthState.Authenticated -> {
+                                            val user = (authState as AuthState.Authenticated).user
+                                            navigateBasedOnRole(navController, user)
                                         }
                                         is AuthState.NeedsSetup -> navController.navigate("setup_welcome")
                                         else -> {}
@@ -195,14 +240,20 @@ class MainActivity : ComponentActivity() {
                                 onBack = { navController.popBackStack() },
                                 onContinue = {
                                     setupViewModel.completeSetup()
-                                    navController.navigate("dashboard") {
-                                        popUpTo("onboarding") { inclusive = true }
+                                    // After setup, navigate based on the user's role
+                                    val user = (authState as? AuthState.NeedsSetup)?.user
+                                    if (user != null) {
+                                        navigateBasedOnRole(navController, user)
+                                    } else {
+                                        navController.navigate("dashboard") {
+                                            popUpTo("onboarding") { inclusive = true }
+                                        }
                                     }
                                 }
                             )
                         }
 
-                        // Main App Screens
+                        // Parent Dashboard Screen
                         composable("dashboard") {
                             val context = LocalContext.current
                             val dashboardViewModel: DashboardViewModel = viewModel(
@@ -234,6 +285,14 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onNavigateToWatch = {
                                     navController.navigate("watch")
+                                },
+                                onSwitchToCaregiverMode = {
+                                    // Only show this option if user has caregiver relationships
+                                    if (currentUser?.parentIds?.isNotEmpty() == true) {
+                                        navController.navigate("caregiver_dashboard") {
+                                            popUpTo("dashboard") { inclusive = true }
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -259,6 +318,14 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onNavigateToStepsTracker = {
                                     navController.navigate("steps_tracker")
+                                },
+                                onSwitchToParentMode = {
+                                    // Only show this option if user is also a parent
+                                    if (currentUser?.isParent == true) {
+                                        navController.navigate("dashboard") {
+                                            popUpTo("caregiver_dashboard") { inclusive = true }
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -280,25 +347,45 @@ class MainActivity : ComponentActivity() {
 
                         // Health Tracking Screens
                         composable("heart_rate") {
+                            val context = LocalContext.current
+                            val healthViewModel: HealthViewModel = viewModel(
+                                factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                            )
                             HeartRateScreen(
+                                viewModel = healthViewModel,
                                 onBack = { navController.popBackStack() }
                             )
                         }
 
                         composable("blood_pressure") {
+                            val context = LocalContext.current
+                            val healthViewModel: HealthViewModel = viewModel(
+                                factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                            )
                             BloodPressureScreen(
+                                viewModel = healthViewModel,
                                 onBack = { navController.popBackStack() }
                             )
                         }
 
                         composable("blood_sugar") {
+                            val context = LocalContext.current
+                            val healthViewModel: HealthViewModel = viewModel(
+                                factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                            )
                             BloodSugarScreen(
+                                viewModel = healthViewModel,
                                 onBack = { navController.popBackStack() }
                             )
                         }
 
                         composable("steps_tracker") {
+                            val context = LocalContext.current
+                            val healthViewModel: HealthViewModel = viewModel(
+                                factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                            )
                             StepsTrackerScreen(
+                                viewModel = healthViewModel,
                                 onBack = { navController.popBackStack() }
                             )
                         }
@@ -346,7 +433,27 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToManageCaregivers = {
                                     navController.navigate("manage_caregivers")
                                 },
-                                viewModel = profileViewModel
+                                onSwitchRole = {
+                                    // Switch between parent and caregiver roles if user has both roles
+                                    val user = currentUser
+                                    if (user != null) {
+                                        if (navController.currentBackStackEntry?.destination?.route == "dashboard"
+                                            && user.parentIds.isNotEmpty()) {
+                                            // Currently in parent mode, switch to caregiver
+                                            navController.navigate("caregiver_dashboard") {
+                                                popUpTo("dashboard") { inclusive = true }
+                                            }
+                                        } else if (navController.currentBackStackEntry?.destination?.route == "caregiver_dashboard"
+                                            && user.isParent) {
+                                            // Currently in caregiver mode, switch to parent
+                                            navController.navigate("dashboard") {
+                                                popUpTo("caregiver_dashboard") { inclusive = true }
+                                            }
+                                        }
+                                    }
+                                },
+                                viewModel = profileViewModel,
+                                showRoleSwitcher = (currentUser?.isParent == true && currentUser?.parentIds?.isNotEmpty() == true)
                             )
                         }
 
@@ -361,6 +468,28 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Helper function to navigate based on user role
+     */
+    private fun navigateBasedOnRole(navController: NavController, user: User) {
+        if (user.isParent && user.parentIds.isNotEmpty()) {
+            // User has both roles - show role selection
+            navController.navigate("role_selection") {
+                popUpTo("onboarding") { inclusive = true }
+            }
+        } else if (user.isParent) {
+            // User is a parent
+            navController.navigate("dashboard") {
+                popUpTo("onboarding") { inclusive = true }
+            }
+        } else {
+            // User is a caregiver
+            navController.navigate("caregiver_dashboard") {
+                popUpTo("onboarding") { inclusive = true }
             }
         }
     }

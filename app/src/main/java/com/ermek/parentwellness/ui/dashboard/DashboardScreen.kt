@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
@@ -56,6 +57,7 @@ import com.ermek.parentwellness.ui.dashboard.components.MeasurementListItem
 import com.ermek.parentwellness.ui.theme.PrimaryLightRed
 import com.ermek.parentwellness.ui.theme.PrimaryRed
 import com.ermek.parentwellness.ui.theme.White
+import androidx.compose.foundation.layout.width
 
 @Composable
 fun DashboardScreen(
@@ -68,7 +70,8 @@ fun DashboardScreen(
     onNavigateToReports: () -> Unit = {},
     onNavigateToAddMeasurement: () -> Unit = {},
     onNavigateToAlerts: () -> Unit = {},
-    onNavigateToWatch: () -> Unit = {}
+    onNavigateToWatch: () -> Unit = {},
+    onSwitchToCaregiverMode: () -> Unit = {}
 ) {
     val dashboardState by viewModel.dashboardState.collectAsState()
     val user by viewModel.user.collectAsState()
@@ -177,7 +180,9 @@ fun DashboardScreen(
                         onNavigateToBloodPressure = onNavigateToBloodPressure,
                         onNavigateToBloodSugar = onNavigateToBloodSugar,
                         onNavigateToStepsTracker = onNavigateToStepsTracker,
-                        onNavigateToWatch = onNavigateToWatch
+                        onNavigateToWatch = onNavigateToWatch,
+                        onSwitchToCaregiverMode = onSwitchToCaregiverMode,
+                        showRoleSwitcher = user?.parentIds?.isNotEmpty() == true
                     )
                 }
 
@@ -206,7 +211,9 @@ fun DashboardContent(
     onNavigateToBloodPressure: () -> Unit,
     onNavigateToBloodSugar: () -> Unit,
     onNavigateToStepsTracker: () -> Unit,
-    onNavigateToWatch: () -> Unit
+    onNavigateToWatch: () -> Unit,
+    onSwitchToCaregiverMode: () -> Unit = {},
+    showRoleSwitcher: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -234,6 +241,26 @@ fun DashboardContent(
             )
 
             Spacer(modifier = Modifier.weight(1f))
+
+            // Role switcher icon
+            if (showRoleSwitcher) {
+                IconButton(
+                    onClick = onSwitchToCaregiverMode,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color.Blue.copy(alpha = 0.8f))
+                        .size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.CompareArrows,
+                        contentDescription = "Switch to Caregiver Mode",
+                        tint = White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+            }
 
             IconButton(
                 onClick = { /* Open settings */ },

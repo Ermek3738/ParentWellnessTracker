@@ -2,242 +2,264 @@ package com.ermek.parentwellness.ui.alerts
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Opacity
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Water
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-
-enum class AlertSeverity {
-    HIGH, MEDIUM, LOW, INFO
-}
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ermek.parentwellness.notifications.Alert
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlertsScreen() {
+fun AlertsScreen(
+    viewModel: AlertsViewModel = viewModel()
+) {
+    val alertsState by viewModel.alertsState.collectAsState()
+
+    // Load alerts when the screen appears
+    LaunchedEffect(Unit) {
+        viewModel.loadAlerts()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Alerts") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White
-                ),
+                title = { Text("Health Alerts") },
                 actions = {
-                    IconButton(onClick = { /* Open alert settings */ }) {
+                    IconButton(onClick = { /* Open notification settings */ }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            // Today's alerts
-            Text(
-                text = "Today",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+        when (val state = alertsState) {
+            is AlertsState.Loading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            is AlertsState.Success -> {
+                if (state.alerts.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "No alerts yet",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "When there are health alerts, they will appear here",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                    ) {
+                        // Group alerts by date
+                        val groupedAlerts = state.alerts.groupBy { alert ->
+                            formatDateHeader(alert.timestamp)
+                        }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                        groupedAlerts.forEach { (date, alertsForDate) ->
+                            item {
+                                Text(
+                                    text = date,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
 
-            AlertItem(
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = "Heart Rate",
-                        tint = Color.White
-                    )
-                },
-                title = "High Heart Rate",
-                message = "Your heart rate was above 100 BPM for more than 10 minutes while resting.",
-                time = "2 hours ago",
-                severity = AlertSeverity.HIGH
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            AlertItem(
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.WaterDrop,
-                        contentDescription = "Blood Pressure",
-                        tint = Color.White
-                    )
-                },
-                title = "Elevated Blood Pressure",
-                message = "Your blood pressure reading was 135/90 mmHg at 9:30 AM.",
-                time = "5 hours ago",
-                severity = AlertSeverity.MEDIUM
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Yesterday's alerts
-            Text(
-                text = "Yesterday",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            AlertItem(
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Opacity,
-                        contentDescription = "Blood Sugar",
-                        tint = Color.White
-                    )
-                },
-                title = "Low Blood Sugar",
-                message = "Your blood sugar level dropped to 65 mg/dL at 11:45 PM.",
-                time = "1 day ago",
-                severity = AlertSeverity.HIGH
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            AlertItem(
-                icon = {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.DirectionsWalk,
-                        contentDescription = "Steps",
-                        tint = Color.White
-                    )
-                },
-                title = "Activity Goal Achieved",
-                message = "Congratulations! You've reached your daily step goal of 10,000 steps.",
-                time = "1 day ago",
-                severity = AlertSeverity.INFO
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Last Week alerts
-            Text(
-                text = "Last Week",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            AlertItem(
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = "Heart Rate",
-                        tint = Color.White
-                    )
-                },
-                title = "Irregular Heart Rhythm",
-                message = "Several instances of irregular heart rhythm were detected. Please consult your doctor.",
-                time = "5 days ago",
-                severity = AlertSeverity.HIGH
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            AlertItem(
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.WaterDrop,
-                        contentDescription = "Blood Pressure",
-                        tint = Color.White
-                    )
-                },
-                title = "Blood Pressure Trend",
-                message = "Your systolic blood pressure has been gradually increasing over the past week.",
-                time = "6 days ago",
-                severity = AlertSeverity.MEDIUM
-            )
+                            items(alertsForDate) { alert ->
+                                AlertItem(
+                                    alert = alert,
+                                    onAlertClick = { viewModel.markAlertAsRead(alert.id) }
+                                )
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+                }
+            }
+            is AlertsState.Error -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Error loading alerts",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { viewModel.loadAlerts() }) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlertItem(
-    icon: @Composable () -> Unit,
-    title: String,
-    message: String,
-    time: String,
-    severity: AlertSeverity
+    alert: Alert,
+    onAlertClick: () -> Unit
 ) {
-    val backgroundColor = when (severity) {
-        AlertSeverity.HIGH -> Color.Red.copy(alpha = 0.1f)
-        AlertSeverity.MEDIUM -> Color(0xFFFFA500).copy(alpha = 0.1f) // Orange
-        AlertSeverity.LOW -> Color.Yellow.copy(alpha = 0.1f)
-        AlertSeverity.INFO -> Color.Green.copy(alpha = 0.1f)
-    }
-
-    val iconBackgroundColor = when (severity) {
-        AlertSeverity.HIGH -> Color.Red
-        AlertSeverity.MEDIUM -> Color(0xFFFFA500) // Orange
-        AlertSeverity.LOW -> Color.Yellow
-        AlertSeverity.INFO -> Color.Green
-    }
+    val backgroundColor = if (!alert.read)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
+    else
+        MaterialTheme.colorScheme.surface
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = backgroundColor
-        )
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        onClick = onAlertClick
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.Top
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(iconBackgroundColor),
-                contentAlignment = Alignment.Center
-            ) {
-                icon()
+            // Alert icon based on type
+            val icon = when (alert.type) {
+                "high_heart_rate", "low_heart_rate" -> Icons.Default.Favorite
+                "high_blood_pressure", "low_blood_pressure" -> Icons.Default.Water
+                "high_blood_sugar", "low_blood_sugar" -> Icons.Default.Opacity
+                "emergency" -> Icons.Default.Warning
+                else -> Icons.Default.Notifications
             }
+
+            val iconColor = when (alert.type) {
+                "high_heart_rate", "high_blood_pressure", "high_blood_sugar" -> MaterialTheme.colorScheme.error
+                "low_heart_rate", "low_blood_pressure", "low_blood_sugar" -> MaterialTheme.colorScheme.primary
+                "emergency" -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.primary
+            }
+
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(24.dp)
+            )
 
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    text = getAlertTitle(alert),
+                    style = MaterialTheme.typography.titleSmall
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
-
                 Text(
-                    text = message,
+                    text = getAlertDescription(alert),
                     style = MaterialTheme.typography.bodyMedium
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
-                    text = time,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    text = formatTime(alert.timestamp),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            if (!alert.read) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = CircleShape
+                        )
                 )
             }
         }
+    }
+}
+
+// Helper functions for formatting
+private fun formatDateHeader(timestamp: Long): String {
+    val calendar = Calendar.getInstance()
+    val today = Calendar.getInstance()
+    calendar.timeInMillis = timestamp
+
+    return when {
+        calendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                calendar.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) -> "Today"
+
+        calendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                calendar.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) - 1 -> "Yesterday"
+
+        calendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                today.get(Calendar.DAY_OF_YEAR) - calendar.get(Calendar.DAY_OF_YEAR) < 7 -> {
+            val sdf = SimpleDateFormat("EEEE", Locale.getDefault())
+            sdf.format(Date(timestamp))
+        }
+
+        else -> {
+            val sdf = SimpleDateFormat("MMMM d, yyyy", Locale.getDefault())
+            sdf.format(Date(timestamp))
+        }
+    }
+}
+
+private fun formatTime(timestamp: Long): String {
+    val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
+    return sdf.format(Date(timestamp))
+}
+
+private fun getAlertTitle(alert: Alert): String {
+    return when (alert.type) {
+        "high_heart_rate" -> "High Heart Rate Alert"
+        "low_heart_rate" -> "Low Heart Rate Alert"
+        "high_blood_pressure" -> "High Blood Pressure Alert"
+        "low_blood_pressure" -> "Low Blood Pressure Alert"
+        "high_blood_sugar" -> "High Blood Sugar Alert"
+        "low_blood_sugar" -> "Low Blood Sugar Alert"
+        "emergency" -> "Emergency Alert"
+        else -> "Health Alert"
+    }
+}
+
+private fun getAlertDescription(alert: Alert): String {
+    return when (alert.type) {
+        "high_heart_rate" -> "Your heart rate was ${alert.value} BPM, which is above normal range."
+        "low_heart_rate" -> "Your heart rate was ${alert.value} BPM, which is below normal range."
+        "high_blood_pressure" -> "Your blood pressure was ${alert.value} mmHg, which is elevated."
+        "low_blood_pressure" -> "Your blood pressure was ${alert.value} mmHg, which is low."
+        "high_blood_sugar" -> "Your blood sugar was ${alert.value} mg/dL, which is above normal range."
+        "low_blood_sugar" -> "Your blood sugar was ${alert.value} mg/dL, which is below normal range."
+        "emergency" -> "Emergency alert: ${alert.value}"
+        else -> "${alert.metricName}: ${alert.value}"
     }
 }

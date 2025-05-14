@@ -1,10 +1,9 @@
-import org.gradle.kotlin.dsl.support.kotlinCompilerOptions
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
+    id("kotlin-kapt")
 }
 
 android {
@@ -68,7 +67,7 @@ dependencies {
     // Samsung Health SDK (direct implementation as it's a local file
 //    implementation(files("libs/samsung-health-data-1.5.1.aar"))
     implementation(files("libs/samsung-health-sensor-api-v1.3.0.aar"))
-    implementation ("androidx.health.connect:connect-client:1.0.0-alpha02")
+    implementation (libs.androidx.health.connect)
     // Other Samsung Health related dependencies from version catalog
     implementation(libs.androidx.health.connect)
     implementation(libs.moshi.kotlin)
@@ -108,5 +107,11 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     //noinspection GradleDependency
     implementation(libs.play.services.auth)
+
+    //Data Synchronization
+    // Room dependencies
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    kapt(libs.room.compiler)
 
 }

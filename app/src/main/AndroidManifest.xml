@@ -30,7 +30,7 @@
     </queries>
 
     <application
-        android:name=".ParentWellnessApp"
+        android:name=".ParentWellnessApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -39,6 +39,14 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ParentWellness">
+
+        <service
+            android:name=".notifications.ParentWellnessFCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <!-- Samsung Health Service Component -->
         <meta-data

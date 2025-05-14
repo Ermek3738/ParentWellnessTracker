@@ -2,7 +2,9 @@ package com.ermek.parentwellness
 
 import android.app.Application
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.messaging.FirebaseMessaging
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -39,9 +41,9 @@ import com.ermek.parentwellness.ui.dashboard.DashboardScreen
 import com.ermek.parentwellness.ui.dashboard.DashboardViewModel
 import com.ermek.parentwellness.ui.health.BloodPressureScreen
 import com.ermek.parentwellness.ui.health.BloodSugarScreen
+import com.ermek.parentwellness.ui.health.HealthDataViewModel
 import com.ermek.parentwellness.ui.health.HeartRateScreen
 import com.ermek.parentwellness.ui.health.StepsTrackerScreen
-import com.ermek.parentwellness.ui.health.HealthViewModel
 import com.ermek.parentwellness.ui.onboarding.OnboardingScreen
 import com.ermek.parentwellness.ui.profile.EditProfileScreen
 import com.ermek.parentwellness.ui.profile.ProfileScreen
@@ -82,8 +84,21 @@ class MainActivity : ComponentActivity() {
             ViewModelProvider.AndroidViewModelFactory(application)
         )[WatchViewModel::class.java]
 
+        // Create ViewModel factory for HealthDataViewModel
+        val factory = ViewModelProvider.AndroidViewModelFactory(application)
+
         // Set up WorkManager for periodic sync
         setupSensorSyncWorker()
+
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val token = task.result
+                Log.d("FCM_TOKEN", "Current FCM token: $token")
+                // Store this token for testing
+            } else {
+                Log.w("FCM_TOKEN", "Fetching FCM token failed", task.exception)
+            }
+        }
 
         setContent {
             ParentWellnessTheme {
@@ -347,46 +362,42 @@ class MainActivity : ComponentActivity() {
 
                         // Health Tracking Screens
                         composable("heart_rate") {
-                            val context = LocalContext.current
-                            val healthViewModel: HealthViewModel = viewModel(
-                                factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                            val viewModel: HealthDataViewModel = viewModel(
+                                factory = factory
                             )
                             HeartRateScreen(
-                                viewModel = healthViewModel,
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                healthDataViewModel = viewModel
                             )
                         }
 
                         composable("blood_pressure") {
-                            val context = LocalContext.current
-                            val healthViewModel: HealthViewModel = viewModel(
-                                factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                            val viewModel: HealthDataViewModel = viewModel(
+                                factory = factory
                             )
                             BloodPressureScreen(
-                                viewModel = healthViewModel,
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                healthDataViewModel = viewModel
                             )
                         }
 
                         composable("blood_sugar") {
-                            val context = LocalContext.current
-                            val healthViewModel: HealthViewModel = viewModel(
-                                factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                            val viewModel: HealthDataViewModel = viewModel(
+                                factory = factory
                             )
                             BloodSugarScreen(
-                                viewModel = healthViewModel,
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                healthDataViewModel = viewModel
                             )
                         }
 
                         composable("steps_tracker") {
-                            val context = LocalContext.current
-                            val healthViewModel: HealthViewModel = viewModel(
-                                factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                            val viewModel: HealthDataViewModel = viewModel(
+                                factory = factory
                             )
                             StepsTrackerScreen(
-                                viewModel = healthViewModel,
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                healthDataViewModel = viewModel
                             )
                         }
 

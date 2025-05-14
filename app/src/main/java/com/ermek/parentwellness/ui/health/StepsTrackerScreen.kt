@@ -5,24 +5,21 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ermek.parentwellness.data.model.HealthData
-import com.ermek.parentwellness.ui.components.MetricType
-import com.ermek.parentwellness.ui.components.SimpleLineChart
+import com.ermek.parentwellness.ui.components.TimeRangeSelector
 import com.ermek.parentwellness.ui.theme.PrimaryRed
 import java.text.SimpleDateFormat
 import java.util.*
@@ -31,22 +28,26 @@ import java.util.*
 @Composable
 fun StepsTrackerScreen(
     onBack: () -> Unit,
-    viewModel: HealthViewModel = viewModel()
+    healthDataViewModel: HealthDataViewModel = viewModel()
 ) {
-    // State variables
-    val stepsData by viewModel.stepsData.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val stepsData by healthDataViewModel.stepsData.collectAsState()
+    val isLoading by healthDataViewModel.isLoading.collectAsState()
+    val error by healthDataViewModel.error.collectAsState()
 
-    // UI state
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var showAddDialog by remember { mutableStateOf(false) }
-    var showOptionsMenu by remember { mutableStateOf(false) }
+    var showAddStepsDialog by remember { mutableStateOf(false) }
 
-    // Load steps data when the screen appears
-    LaunchedEffect(Unit) {
-        viewModel.loadHealthData(HealthData.TYPE_STEPS)
-    }
+    // Calculate daily goal and progress
+    val dailyGoal = 10000
+    val todaySteps = stepsData.filter {
+        val calendar = Calendar.getInstance()
+        val today = Calendar.getInstance()
+        calendar.timeInMillis = it.timestamp
+
+        calendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                calendar.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
+    }.maxByOrNull { it.timestamp }?.steps ?: 0
+
+    val progress = (todaySteps.toFloat() / dailyGoal * 100).toInt().coerceIn(0, 100)
 
     Scaffold(
         topBar = {
@@ -58,37 +59,8 @@ fun StepsTrackerScreen(
                     }
                 },
                 actions = {
-                    Box {
-                        IconButton(onClick = { showOptionsMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                        }
-
-                        DropdownMenu(
-                            expanded = showOptionsMenu,
-                            onDismissRequest = { showOptionsMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Generate Test Data") },
-                                onClick = {
-                                    viewModel.generateSimulatedData(HealthData.TYPE_STEPS, 20)
-                                    showOptionsMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Refresh Data") },
-                                onClick = {
-                                    viewModel.loadHealthData(HealthData.TYPE_STEPS)
-                                    showOptionsMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("View All Data") },
-                                onClick = {
-                                    selectedTab = 1 // Switch to history tab
-                                    showOptionsMenu = false
-                                }
-                            )
-                        }
+                    IconButton(onClick = { /* Show options */ }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More options")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -98,11 +70,11 @@ fun StepsTrackerScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddDialog = true },
+                onClick = { showAddStepsDialog = true },
                 containerColor = PrimaryRed
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    Icons.Default.Add,
                     contentDescription = "Add Steps",
                     tint = Color.White
                 )
@@ -114,486 +86,175 @@ fun StepsTrackerScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (isLoading) {
-                // Loading indicator
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                // Today's progress
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = PrimaryRed.copy(alpha = 0.1f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Today's Steps",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "$todaySteps",
+                            style = MaterialTheme.typography.displayMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryRed
+                        )
+
+                        Text(
+                            text = "of $dailyGoal goal",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        LinearProgressIndicator(
+                            progress = { progress / 100f },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                            color = PrimaryRed,
+                            trackColor = Color.LightGray
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "$progress% of daily goal",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Average stats
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    val avgSteps = stepsData.takeIf { it.isNotEmpty() }?.let {
+                        it.sumOf { data -> data.steps } / it.size
+                    } ?: 0
+
+                    val maxSteps = stepsData.takeIf { it.isNotEmpty() }?.maxOfOrNull { it.steps } ?: 0
+                    val totalSteps = stepsData.takeIf { it.isNotEmpty() }?.sumOf { it.steps } ?: 0
+
+                    StatisticItem(value = avgSteps.toString(), label = "Daily Avg")
+                    StatisticItem(value = maxSteps.toString(), label = "Best Day")
+                    StatisticItem(value = totalSteps.toString(), label = "Total")
+                }
+
+                // Time range selector
+                TimeRangeSelector(
+                    onRangeSelected = { timeRange ->
+                        healthDataViewModel.loadDataByTimeRange(timeRange)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Chart placeholder
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(color = PrimaryRed)
+                    } else if (error != null) {
+                        Text("Error: $error")
+                    } else if (stepsData.isEmpty()) {
+                        Text("No steps data available")
+                    } else {
+                        Text("Steps Chart")
+                        // We'll implement the actual chart visualization later
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Steps history section
+                Text(
+                    text = "History",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (stepsData.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No steps data available")
+                    }
+                } else {
+                    // Display list of steps readings
+                    stepsData.forEach { data ->
+                        StepsHistoryItem(data)
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    }
+                }
+            }
+
+            // Loading indicator
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f)),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(color = PrimaryRed)
                 }
-            } else if (error != null) {
-                // Error message
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "Error: $error",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Button(
-                            onClick = { viewModel.loadHealthData(HealthData.TYPE_STEPS) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = PrimaryRed
-                            )
-                        ) {
-                            Text("Retry")
-                        }
-                    }
-                }
-            } else {
-                // Main content
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp)
-                ) {
-                    // Daily steps summary
-                    StepsSummary(stepsData)
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Tab layout
-                    TabRow(
-                        selectedTabIndex = selectedTab,
-                        containerColor = Color.White,
-                        contentColor = PrimaryRed,
-                        indicator = {
-                            TabRowDefaults.SecondaryIndicator(
-                                modifier = Modifier,
-                                color = PrimaryRed,
-                                height = 3.dp
-                            )
-                        }
-                    ) {
-                        Tab(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            text = { Text("Statistics") }
-                        )
-
-                        Tab(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            text = { Text("History (${stepsData.size})") }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Content based on selected tab
-                    if (selectedTab == 0) {
-                        // Statistics tab
-                        StepsChart(stepsData)
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        Text(
-                            text = "Daily Activity",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        StepsDailyGoalProgress(stepsData)
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        Text(
-                            text = "Activity Insights",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        ActivityInsights()
-                    } else {
-                        // History tab
-                        if (stepsData.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "No steps data available",
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Button(
-                                        onClick = { showAddDialog = true },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = PrimaryRed
-                                        )
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = null
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Add Measurement")
-                                    }
-                                }
-                            }
-                        } else {
-                            StepsHistory(
-                                stepsData = stepsData,
-                                onDeleteEntry = { id ->
-                                    viewModel.deleteHealthData(id, HealthData.TYPE_STEPS)
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Add steps dialog
-            if (showAddDialog) {
-                HealthDataEntryDialog(
-                    metricType = MetricType.STEPS,
-                    onDismiss = { showAddDialog = false },
-                    onSubmit = { entry ->
-                        viewModel.saveHealthData(entry)
-                    }
-                )
             }
         }
     }
-}
 
-@Composable
-fun StepsSummary(stepsData: List<HealthData>) {
-    // Get today's steps (or most recent)
-    val todaySteps = stepsData
-        .firstOrNull()
-        ?.primaryValue?.toInt() ?: 0
-
-    // Daily goal - default is 10,000 steps
-    val dailyGoal = 10000
-
-    // Calculate progress percentage
-    val progressPercentage = (todaySteps.toFloat() / dailyGoal).coerceIn(0f, 1f)
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFF5F5F5)
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.DirectionsWalk,
-                contentDescription = "Steps",
-                tint = PrimaryRed,
-                modifier = Modifier.size(40.dp)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "$todaySteps",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Text(
-                text = "steps today",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            LinearProgressIndicator(
-                progress = { progressPercentage },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(12.dp)
-                    .clip(RoundedCornerShape(6.dp)),
-                color = PrimaryRed,
-                trackColor = Color.LightGray
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "${(progressPercentage * 100).toInt()}% of daily goal",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-        }
-    }
-}
-
-@Composable
-fun StepsChart(stepsData: List<HealthData>) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // Date range selector
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Steps Count",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Chart using our SimpleLineChart component
-        SimpleLineChart(
-            data = stepsData,
-            lineColor = Color(0xFFFF9800), // Orange
-            showPoints = true
+    // Add Steps Dialog
+    if (showAddStepsDialog) {
+        AddStepsDialog(
+            onDismiss = { showAddStepsDialog = false },
+            onSave = { steps ->
+                healthDataViewModel.addStepsReading(steps)
+                showAddStepsDialog = false
+            }
         )
     }
 }
 
 @Composable
-fun StepsDailyGoalProgress(stepsData: List<HealthData>) {
-    // Get weekly average
-    val weeklyAverage = if (stepsData.size >= 7) {
-        stepsData.take(7).map { it.primaryValue }.average().toInt()
-    } else if (stepsData.isNotEmpty()) {
-        stepsData.map { it.primaryValue }.average().toInt()
-    } else {
-        0
-    }
-
-    // Daily goal - default is 10,000 steps
-    val dailyGoal = 10000
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Weekly Average: $weeklyAverage steps",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            DailyGoalProgressRow(
-                day = "Monday",
-                steps = stepsData.getOrNull(6)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Tuesday",
-                steps = stepsData.getOrNull(5)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Wednesday",
-                steps = stepsData.getOrNull(4)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Thursday",
-                steps = stepsData.getOrNull(3)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Friday",
-                steps = stepsData.getOrNull(2)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Saturday",
-                steps = stepsData.getOrNull(1)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-
-            DailyGoalProgressRow(
-                day = "Sunday",
-                steps = stepsData.getOrNull(0)?.primaryValue?.toInt() ?: 0,
-                goal = dailyGoal
-            )
-        }
-    }
-}
-
-@Composable
-fun DailyGoalProgressRow(
-    day: String,
-    steps: Int,
-    goal: Int
-) {
-    val progressPercentage = (steps.toFloat() / goal).coerceIn(0f, 1f)
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = day,
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Text(
-                text = "$steps steps",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        LinearProgressIndicator(
-            progress = { progressPercentage },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp)),
-            color = PrimaryRed,
-            trackColor = Color.LightGray
-        )
-    }
-}
-
-@Composable
-fun ActivityInsights() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            InsightRow(
-                title = "Daily Goal",
-                description = "Aim for 10,000 steps per day for good health",
-                color = Color(0xFF4CAF50) // Green
-            )
-
-            InsightRow(
-                title = "Consistency",
-                description = "Walk regularly throughout the day, not all at once",
-                color = Color(0xFF2196F3) // Blue
-            )
-
-            InsightRow(
-                title = "Progress",
-                description = "Gradually increase your step count if you're just starting",
-                color = Color(0xFFFF9800) // Orange
-            )
-
-            InsightRow(
-                title = "Benefits",
-                description = "Regular walking improves heart health and mood",
-                color = Color(0xFF9C27B0) // Purple
-            )
-        }
-    }
-}
-
-@Composable
-fun InsightRow(
-    title: String,
-    description: String,
-    color: Color
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(16.dp)
-                .background(color, RoundedCornerShape(8.dp))
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-        }
-    }
-}
-
-@Composable
-fun StepsHistory(
-    stepsData: List<HealthData>,
-    onDeleteEntry: (String) -> Unit
-) {
-    Column {
-        stepsData.forEach { data ->
-            StepsHistoryItem(
-                stepsData = data,
-                onDelete = { onDeleteEntry(data.id) }
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-        }
-    }
-}
-
-@Composable
-fun StepsHistoryItem(
-    stepsData: HealthData,
-    onDelete: () -> Unit
-) {
-    val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    val formattedDate = dateFormat.format(Date(stepsData.timestamp))
-
-    val steps = stepsData.primaryValue.toInt()
-    val dailyGoal = 10000
-    val progressPercentage = (steps.toFloat() / dailyGoal * 100).toInt().coerceIn(0, 100)
+fun StepsHistoryItem(data: com.ermek.parentwellness.data.repository.StepsData) {
+    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    val formattedDate = remember(data.timestamp) { dateFormat.format(Date(data.timestamp)) }
 
     Row(
         modifier = Modifier
@@ -602,81 +263,102 @@ fun StepsHistoryItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Steps icon
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFFFF9800).copy(alpha = 0.2f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.DirectionsWalk,
-                contentDescription = "Steps",
-                tint = Color(0xFFFF9800),
-                modifier = Modifier.size(24.dp)
-            )
-        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.DirectionsWalk,
+            contentDescription = "Steps",
+            tint = PrimaryRed,
+            modifier = Modifier.size(32.dp)
+        )
 
         Spacer(modifier = Modifier.width(16.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "$steps steps",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Progress percentage
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            when {
-                                progressPercentage >= 100 -> Color.Green.copy(alpha = 0.2f)
-                                progressPercentage >= 70 -> Color(0xFFFF9800).copy(alpha = 0.2f)
-                                else -> Color.Gray.copy(alpha = 0.2f)
-                            }
-                        )
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "$progressPercentage%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = when {
-                            progressPercentage >= 100 -> Color.Green
-                            progressPercentage >= 70 -> Color(0xFFFF9800)
-                            else -> Color.Gray
-                        }
-                    )
-                }
-            }
-
             Text(
                 text = formattedDate,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            // Calculate progress
+            val progress = (data.steps.toFloat() / 10000 * 100).toInt().coerceIn(0, 100)
+
+            Text(
+                text = "$progress% of daily goal",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
+        }
 
-            if (stepsData.notes.isNotEmpty()) {
-                Text(
-                    text = "Note: ${stepsData.notes}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+        Text(
+            text = "${data.steps}",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = PrimaryRed
+        )
+    }
+}
+
+@Composable
+fun AddStepsDialog(
+    onDismiss: () -> Unit,
+    onSave: (steps: Int) -> Unit
+) {
+    var stepsText by remember { mutableStateOf("") }
+    var stepsError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Steps") },
+        text = {
+            Column {
+                // Steps input
+                OutlinedTextField(
+                    value = stepsText,
+                    onValueChange = {
+                        stepsText = it.filter { char -> char.isDigit() }
+                        stepsError = false
+                    },
+                    label = { Text("Steps Count") },
+                    isError = stepsError,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
+
+                if (stepsError) {
+                    Text(
+                        text = "Please enter a valid steps value",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val steps = stepsText.toIntOrNull()
+
+                    // Validate input
+                    stepsError = steps == null || steps < 0 || steps > 100000
+
+                    if (!stepsError) {
+                        onSave(steps!!)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PrimaryRed
+                )
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
-
-        IconButton(onClick = onDelete) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Delete",
-                tint = Color.Gray
-            )
-        }
-    }
+    )
 }

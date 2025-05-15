@@ -32,6 +32,7 @@ fun ProfileScreen(
     onSignOut: () -> Unit,
     onEditProfile: () -> Unit,
     onNavigateToManageCaregivers: () -> Unit,
+    onNavigateToEmergencyContacts: () -> Unit,
     onSwitchRole: () -> Unit = {},
     showRoleSwitcher: Boolean = false,
     viewModel: ProfileViewModel = viewModel()
@@ -294,6 +295,12 @@ fun ProfileScreen(
                             icon = Icons.Default.Watch,
                             title = "Connected Devices",
                             subtitle = "Manage your Samsung Galaxy Watch4"
+                        )
+                        SettingsItem(
+                            icon = Icons.Default.Call,
+                            title = "Emergency Contacts",
+                            subtitle = "Manage your emergency contacts",
+                            onClick = onNavigateToEmergencyContacts
                         )
 
                         if (user.isParent) {

@@ -39,6 +39,7 @@ import com.ermek.parentwellness.ui.caregiver.ManageCaregiversScreen
 import com.ermek.parentwellness.ui.caregiver.ManageParentsScreen
 import com.ermek.parentwellness.ui.dashboard.DashboardScreen
 import com.ermek.parentwellness.ui.dashboard.DashboardViewModel
+import com.ermek.parentwellness.ui.emergency.EmergencyContactsScreen
 import com.ermek.parentwellness.ui.health.BloodPressureScreen
 import com.ermek.parentwellness.ui.health.BloodSugarScreen
 import com.ermek.parentwellness.ui.health.HealthDataViewModel
@@ -444,6 +445,9 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToManageCaregivers = {
                                     navController.navigate("manage_caregivers")
                                 },
+                                onNavigateToEmergencyContacts = {
+                                    navController.navigate("emergency_contacts")
+                                },
                                 onSwitchRole = {
                                     // Switch between parent and caregiver roles if user has both roles
                                     val user = currentUser
@@ -475,6 +479,15 @@ class MainActivity : ComponentActivity() {
                                     navController.popBackStack()
                                 },
                                 viewModel = profileViewModel
+                            )
+                        }
+                        composable("emergency_contacts") {
+                            val context = LocalContext.current
+                            EmergencyContactsScreen(
+                                onNavigateBack = { navController.popBackStack() },
+                                viewModel = viewModel(
+                                    factory = ViewModelProvider.AndroidViewModelFactory(context.applicationContext as Application)
+                                )
                             )
                         }
                     }

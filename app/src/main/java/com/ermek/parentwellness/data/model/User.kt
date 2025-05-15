@@ -30,7 +30,7 @@ data class User(
     val healthDataPermissions: Map<String, List<String>> = mapOf(),
 
     // Emergency contact information
-    val emergencyContact: EmergencyContact? = null,
+    val emergencyContacts: List<EmergencyContact> = emptyList(),
 
     val createdAt: Long = 0,
     val updatedAt: Long = 0
@@ -48,8 +48,10 @@ data class UserProfile(
 )
 
 data class EmergencyContact(
+    val id: String = "",
     val name: String = "",
-    val relationship: String = "",
     val phoneNumber: String = "",
-    val email: String = ""
+    val relationship: String = "",
+    val priority: Int = 0,
+    val isNotified: Boolean = true
 )

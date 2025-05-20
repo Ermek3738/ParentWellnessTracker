@@ -1,6 +1,5 @@
 package com.ermek.parentwellness.ui.health
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,10 +18,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ermek.parentwellness.ui.components.HeartRateChart
 import com.ermek.parentwellness.ui.theme.PrimaryRed
+import com.ermek.parentwellness.ui.components.SimulatedDataControls
+import com.ermek.parentwellness.ui.components.TimeRangeSelector
 import java.text.SimpleDateFormat
 import java.util.*
-import com.ermek.parentwellness.ui.health.TimeRange
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,7 +34,6 @@ fun HeartRateScreen(
     val heartRateData by healthDataViewModel.heartRateData.collectAsState()
     val isLoading by healthDataViewModel.isLoading.collectAsState()
     val error by healthDataViewModel.error.collectAsState()
-
     var showAddHeartRateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -79,7 +79,11 @@ fun HeartRateScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
-                // Header with average stats (pulled from your existing code)
+                SimulatedDataControls(
+                    viewModel = healthDataViewModel,
+                    metricType = "HEART_RATE"
+                )
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -98,39 +102,23 @@ fun HeartRateScreen(
                     StatisticItem(value = minHeartRate.toString(), label = "Minimum")
                 }
 
-                // Time range selector
                 TimeRangeSelector(
                     onRangeSelected = { timeRange ->
-                        // Fixed line: Use TimeRange.fromString(timeRange) instead of just TimeRange
-                        healthDataViewModel.loadDataByTimeRange(TimeRange.fromString(timeRange))
+                        healthDataViewModel.loadDataByTimeRange(TimeRange.fromString(timeRange.toString()))
                     }
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Chart placeholder (we'll replace this with actual chart later)
-                Box(
+                HeartRateChart(
+                    data = heartRateData,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp)
-                        .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = PrimaryRed)
-                    } else if (error != null) {
-                        Text("Error: $error")
-                    } else if (heartRateData.isEmpty()) {
-                        Text("No heart rate data available")
-                    } else {
-                        Text("Heart Rate Chart")
-                        // We'll implement the actual chart visualization later
-                    }
-                }
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Heart rate history section
                 Text(
                     text = "History",
                     style = MaterialTheme.typography.titleLarge,
@@ -149,7 +137,6 @@ fun HeartRateScreen(
                         Text("No heart rate data available")
                     }
                 } else {
-                    // Display list of heart rate readings
                     heartRateData.forEach { data ->
                         HeartRateHistoryItem(data)
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -157,7 +144,6 @@ fun HeartRateScreen(
                 }
             }
 
-            // Loading indicator
             if (isLoading) {
                 Box(
                     modifier = Modifier
@@ -171,7 +157,6 @@ fun HeartRateScreen(
         }
     }
 
-    // Add Heart Rate Dialog
     if (showAddHeartRateDialog) {
         AddHeartRateDialog(
             onDismiss = { showAddHeartRateDialog = false },
@@ -192,51 +177,11 @@ fun StatisticItem(value: String, label: String) {
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
-
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = Color.Gray
         )
-    }
-}
-
-@Composable
-fun TimeRangeSelector(onRangeSelected: (String) -> Unit) {
-    var selectedRange by remember { mutableStateOf("Week") }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Time Period",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            listOf("Day", "Week", "Month", "Year").forEach { range ->
-                OutlinedButton(
-                    onClick = {
-                        selectedRange = range
-                        onRangeSelected(range)
-                    },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (selectedRange == range) PrimaryRed else Color.Transparent,
-                        contentColor = if (selectedRange == range) Color.White else Color.Gray
-                    ),
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (selectedRange == range) PrimaryRed else Color.Gray
-                    )
-                ) {
-                    Text(range)
-                }
-            }
-        }
     }
 }
 
@@ -251,7 +196,6 @@ fun HeartRateHistoryItem(data: com.ermek.parentwellness.data.repository.HeartRat
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Heart rate value
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -274,7 +218,6 @@ fun HeartRateHistoryItem(data: com.ermek.parentwellness.data.repository.HeartRat
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold
             )
-
             Text(
                 text = formattedDate,
                 style = MaterialTheme.typography.bodySmall,
@@ -324,20 +267,17 @@ fun AddHeartRateDialog(
                         text = "Please enter a valid heart rate",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                    )
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
                         checked = isResting,
                         onCheckedChange = { isResting = it }
                     )
-
                     Text(
                         text = "Resting heart rate",
                         style = MaterialTheme.typography.bodyMedium

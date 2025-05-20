@@ -37,9 +37,7 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
                     val user = repository.getCurrentUser()
                     _authState.value = when {
                         user == null -> AuthState.Error("Failed to retrieve user profile.")
-                        // Add more specific checks for setup completion
-                        user.fullName.isBlank() || user.gender.isBlank() || user.birthDate.isBlank() ->
-                            AuthState.NeedsSetup(user)
+                        // Always go directly to authenticated state, bypassing setup completely
                         else -> AuthState.Authenticated(user)
                     }
                 } else {
@@ -59,11 +57,11 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
                 val result = repository.signIn(email, password)
                 if (result.isSuccess) {
                     val user = repository.getCurrentUser()
-                    _authState.value = when {
-                        user == null -> AuthState.Error("Login successful but failed to retrieve user data.")
-                        user.fullName.isBlank() || user.gender.isBlank() || user.birthDate.isBlank() ->
-                            AuthState.NeedsSetup(user)
-                        else -> AuthState.Authenticated(user)
+                    _authState.value = if (user == null) {
+                        AuthState.Error("Login successful but failed to retrieve user data.")
+                    } else {
+                        // Skip setup check and directly authenticate
+                        AuthState.Authenticated(user)
                     }
                 } else {
                     val exception = result.exceptionOrNull()
@@ -86,16 +84,27 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
                 val result = repository.signUp(email, password, name, isParent)
                 if (result.isSuccess) {
                     val user = repository.getCurrentUser()
-                    val userId = repository.getCurrentUserId() ?: ""
-                    val setupUser = user ?: User(
-                        id = userId,
-                        email = email,
-                        fullName = name,
-                        isParent = isParent,
-                        caregiverIds = emptyList(),
-                        parentIds = emptyList()
-                    )
-                    _authState.value = AuthState.NeedsSetup(setupUser)
+                    if (user != null) {
+                        // Auto-populate required fields rather than going through setup flow
+                        val updatedUser = user.copy(
+                            fullName = name,
+                            gender = "Prefer not to say",  // Default gender
+                            birthDate = "01-01-2000"       // Default birth date
+                        )
+
+                        // Update the user profile with these default values
+                        try {
+                            repository.updateProfile(updatedUser)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error updating profile with default values", e)
+                            // Continue anyway, as this is not critical
+                        }
+
+                        // Directly go to authenticated state, bypassing setup
+                        _authState.value = AuthState.Authenticated(updatedUser)
+                    } else {
+                        _authState.value = AuthState.Error("Failed to create user profile")
+                    }
                 } else {
                     val exception = result.exceptionOrNull()
                     val errorMessage = getAuthErrorMessage(exception)
@@ -145,7 +154,7 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
 sealed class AuthState {
     object Unauthenticated : AuthState()
     object Loading : AuthState()
-    data class NeedsSetup(val user: User) : AuthState()
+    data class NeedsSetup(val user: User) : AuthState() // Keeping this for backward compatibility
     data class Authenticated(val user: User) : AuthState()
     data class Error(val message: String) : AuthState()
 }

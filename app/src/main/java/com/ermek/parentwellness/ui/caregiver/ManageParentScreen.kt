@@ -15,18 +15,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ermek.parentwellness.data.model.User
-import com.ermek.parentwellness.ui.theme.PrimaryRed
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageParentsScreen(
     onNavigateBack: () -> Unit,
     onSelectParent: (User) -> Unit,
-    viewModel: CaregiverViewModel = viewModel()
+    viewModel: CaregiverViewModel
 ) {
     val parents by viewModel.parents.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -53,7 +54,7 @@ fun ManageParentsScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddParentDialog = true },
-                containerColor = PrimaryRed
+                containerColor = Color.Blue
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -71,7 +72,7 @@ fun ManageParentsScreen(
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
-                    color = PrimaryRed
+                    color = Color.Blue
                 )
             } else if (error != null) {
                 Column(
@@ -114,7 +115,7 @@ fun ManageParentsScreen(
                     Button(
                         onClick = { viewModel.loadParentsForCurrentUser() },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = PrimaryRed
+                            containerColor = Color.Blue
                         )
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null)
@@ -212,7 +213,7 @@ fun ParentItem(
             Icon(
                 imageVector = Icons.Default.Person,
                 contentDescription = null,
-                tint = PrimaryRed,
+                tint = Color.Blue,
                 modifier = Modifier.size(40.dp)
             )
 
@@ -251,6 +252,13 @@ fun AddParentDialog(
 ) {
     var email by remember { mutableStateOf("") }
     var isEmailValid by remember { mutableStateOf(true) }
+    var isButtonEnabled by remember { mutableStateOf(false) }
+
+    // Validate email and update button state on each change
+    LaunchedEffect(email) {
+        isEmailValid = email.isEmpty() || android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+        isButtonEnabled = email.isNotEmpty() && isEmailValid
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -258,7 +266,7 @@ fun AddParentDialog(
         text = {
             Column {
                 Text(
-                    "Enter the email address of the parent you want to monitor.",
+                    "Enter the email address of the parent you want to monitor. The user must have already registered as a parent in the app.",
                     style = MaterialTheme.typography.bodyMedium
                 )
 
@@ -266,13 +274,11 @@ fun AddParentDialog(
 
                 OutlinedTextField(
                     value = email,
-                    onValueChange = {
-                        email = it
-                        isEmailValid = android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() || email.isEmpty()
-                    },
+                    onValueChange = { email = it.trim() },
                     label = { Text("Email Address") },
                     isError = !isEmailValid,
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -289,11 +295,11 @@ fun AddParentDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (isEmailValid && email.isNotEmpty()) {
+                    if (isButtonEnabled) {
                         onAddParent(email)
                     }
                 },
-                enabled = isEmailValid && email.isNotEmpty()
+                enabled = isButtonEnabled
             ) {
                 Text("Add")
             }

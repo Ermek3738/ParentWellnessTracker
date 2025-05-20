@@ -3,6 +3,7 @@ package com.ermek.parentwellness.data.repository
 import android.util.Log
 import com.ermek.parentwellness.data.model.User
 import com.google.firebase.auth.ktx.auth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -15,7 +16,7 @@ class ProfileRepository {
     private val parentsCollection = firestore.collection("parents")
     private val caregiversCollection = firestore.collection("caregivers")
 
-    private val tag = "ProfileRepository" // Fixed: TAG -> tag (lowercase)
+    private val tag = "ProfileRepository"
 
     suspend fun saveUserProfile(user: User): Result<User> {
         return try {
@@ -39,6 +40,13 @@ class ProfileRepository {
             if (user.birthDate.isNotEmpty()) updates["birthDate"] = user.birthDate
             if (user.phoneNumber.isNotEmpty()) updates["phoneNumber"] = user.phoneNumber
             if (user.profilePictureUrl.isNotEmpty()) updates["profilePictureUrl"] = user.profilePictureUrl
+
+            // Add empty lists for relationship fields if they don't exist
+            if (!updates.containsKey("caregiverIds")) updates["caregiverIds"] = emptyList<String>()
+            if (!updates.containsKey("parentIds")) updates["parentIds"] = emptyList<String>()
+
+            // Use isParent field explicitly
+            updates["isParent"] = user.isParent
 
             // Determine which collection to use
             val isParent = user.isParent
@@ -76,40 +84,47 @@ class ProfileRepository {
 
     suspend fun linkCaregiverToParent(parentId: String, caregiverId: String): Result<Boolean> {
         return try {
-            firestore.runTransaction { transaction ->
-                // Get user documents from the primary users collection
-                val parentRef = usersCollection.document(parentId)
-                val caregiverRef = usersCollection.document(caregiverId)
+            Log.d(tag, "Attempting to link caregiver $caregiverId to parent $parentId")
 
-                val parentDoc = transaction.get(parentRef)
-                val caregiverDoc = transaction.get(caregiverRef)
+            // Get the parent and caregiver documents to verify they exist
+            val parentDocRef = usersCollection.document(parentId)
+            val caregiverDocRef = usersCollection.document(caregiverId)
 
-                // Fixed: Safe handling of nullable lists
-                val parent = parentDoc.toObject(User::class.java)
-                    ?: throw Exception("Parent not found")
-                val caregiver = caregiverDoc.toObject(User::class.java)
-                    ?: throw Exception("Caregiver not found")
+            val parentDoc = parentDocRef.get().await()
+            val caregiverDoc = caregiverDocRef.get().await()
 
-                // Update parent's caregiver list - Fixed Elvis operator handling
-                val updatedCaregiverIds = parent.caregiverIds.toMutableList()
-                if (!updatedCaregiverIds.contains(caregiverId)) {
-                    updatedCaregiverIds.add(caregiverId)
-                }
+            if (!parentDoc.exists()) {
+                Log.e(tag, "Parent document not found: $parentId")
+                return Result.failure(Exception("Parent not found"))
+            }
 
-                // Update caregiver's parent list - Fixed Elvis operator handling
-                val updatedParentIds = caregiver.parentIds.toMutableList()
-                if (!updatedParentIds.contains(parentId)) {
-                    updatedParentIds.add(parentId)
-                }
+            if (!caregiverDoc.exists()) {
+                Log.e(tag, "Caregiver document not found: $caregiverId")
+                return Result.failure(Exception("Caregiver not found"))
+            }
 
-                // Perform updates
-                transaction.update(parentRef, "caregiverIds", updatedCaregiverIds)
-                transaction.update(caregiverRef, "parentIds", updatedParentIds)
-            }.await()
+            // Update the parent document to add caregiver to caregiverIds array
+            parentDocRef.update("caregiverIds", FieldValue.arrayUnion(caregiverId)).await()
 
+            // Also update in parents collection if it exists
+            val parentCollectionRef = parentsCollection.document(parentId)
+            if (parentCollectionRef.get().await().exists()) {
+                parentCollectionRef.update("caregiverIds", FieldValue.arrayUnion(caregiverId)).await()
+            }
+
+            // Update the caregiver document to add parent to parentIds array
+            caregiverDocRef.update("parentIds", FieldValue.arrayUnion(parentId)).await()
+
+            // Also update in caregivers collection if it exists
+            val caregiverCollectionRef = caregiversCollection.document(caregiverId)
+            if (caregiverCollectionRef.get().await().exists()) {
+                caregiverCollectionRef.update("parentIds", FieldValue.arrayUnion(parentId)).await()
+            }
+
+            Log.d(tag, "Successfully linked caregiver $caregiverId to parent $parentId")
             Result.success(true)
         } catch (e: Exception) {
-            Log.e(tag, "Error linking caregiver to parent", e)
+            Log.e(tag, "Error linking caregiver to parent: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -118,52 +133,29 @@ class ProfileRepository {
         return try {
             Log.d(tag, "Unlinking caregiver $caregiverId from parent $parentId")
 
-            // Get current parent data
+            // Update in users collection
+            usersCollection.document(parentId)
+                .update("caregiverIds", FieldValue.arrayRemove(caregiverId))
+                .await()
+
+            usersCollection.document(caregiverId)
+                .update("parentIds", FieldValue.arrayRemove(parentId))
+                .await()
+
+            // Update in specialized collections if they exist
             val parentDoc = parentsCollection.document(parentId).get().await()
-            var parent = parentDoc.toObject(User::class.java)
-
-            // If not found in parents collection, try users collection
-            if (parent == null) {
-                val parentDocUsers = usersCollection.document(parentId).get().await()
-                parent = parentDocUsers.toObject(User::class.java)
+            if (parentDoc.exists()) {
+                parentsCollection.document(parentId)
+                    .update("caregiverIds", FieldValue.arrayRemove(caregiverId))
+                    .await()
             }
 
-            if (parent == null) {
-                return Result.failure(Exception("Parent not found"))
-            }
-
-            // Get current caregiver data
             val caregiverDoc = caregiversCollection.document(caregiverId).get().await()
-            var caregiver = caregiverDoc.toObject(User::class.java)
-
-            // If not found in caregivers collection, try users collection
-            if (caregiver == null) {
-                val caregiverDocUsers = usersCollection.document(caregiverId).get().await()
-                caregiver = caregiverDocUsers.toObject(User::class.java)
+            if (caregiverDoc.exists()) {
+                caregiversCollection.document(caregiverId)
+                    .update("parentIds", FieldValue.arrayRemove(parentId))
+                    .await()
             }
-
-            if (caregiver == null) {
-                return Result.failure(Exception("Caregiver not found"))
-            }
-
-            // Update parent's caregiver list - Fixed: safe handling of nullable lists
-            val updatedCaregiverIds = parent.caregiverIds.toMutableList()
-            updatedCaregiverIds.remove(caregiverId)
-
-            // Update caregiver's parent list - Fixed: safe handling of nullable lists
-            val updatedParentIds = caregiver.parentIds.toMutableList()
-            updatedParentIds.remove(parentId)
-
-            // Perform both updates in a transaction
-            firestore.runTransaction { transaction ->
-                // Update parent document in both collections
-                transaction.update(parentsCollection.document(parentId), "caregiverIds", updatedCaregiverIds)
-                transaction.update(usersCollection.document(parentId), "caregiverIds", updatedCaregiverIds)
-
-                // Update caregiver document in both collections
-                transaction.update(caregiversCollection.document(caregiverId), "parentIds", updatedParentIds)
-                transaction.update(usersCollection.document(caregiverId), "parentIds", updatedParentIds)
-            }.await()
 
             Log.d(tag, "Successfully unlinked caregiver from parent")
             Result.success(true)
@@ -177,22 +169,21 @@ class ProfileRepository {
         return try {
             Log.d(tag, "Fetching caregivers for parent $parentId")
 
-            // First check in parents collection
-            var parentDoc = parentsCollection.document(parentId).get().await()
-            var parent = parentDoc.toObject(User::class.java)
+            // Get the parent document from users collection
+            val parentDoc = usersCollection.document(parentId).get().await()
 
-            // If not found, check in users collection for backward compatibility
-            if (parent == null) {
-                parentDoc = usersCollection.document(parentId).get().await()
-                parent = parentDoc.toObject(User::class.java)
-            }
-
-            if (parent == null) {
+            if (!parentDoc.exists()) {
+                Log.e(tag, "Parent document not found: $parentId")
                 return Result.failure(Exception("Parent not found"))
             }
 
-            // Fixed: Safe handling of nullable lists
-            val caregiverIds = parent.caregiverIds
+            // Get the caregiver IDs from the document - safely handle the cast by using empty list as default
+            val rawCaregiverIds = parentDoc.get("caregiverIds")
+            val caregiverIds = if (rawCaregiverIds is List<*>) {
+                rawCaregiverIds.filterIsInstance<String>()
+            } else {
+                emptyList()
+            }
 
             if (caregiverIds.isEmpty()) {
                 Log.d(tag, "No caregivers found for parent")
@@ -202,18 +193,14 @@ class ProfileRepository {
             // Fetch all caregivers
             val caregivers = mutableListOf<User>()
             for (caregiverId in caregiverIds) {
-                // First try caregivers collection
-                var caregiverDoc = caregiversCollection.document(caregiverId).get().await()
-                var caregiver = caregiverDoc.toObject(User::class.java)
+                // Try to get from users collection first
+                val caregiverDoc = usersCollection.document(caregiverId).get().await()
 
-                // If not found, try users collection
-                if (caregiver == null) {
-                    caregiverDoc = usersCollection.document(caregiverId).get().await()
-                    caregiver = caregiverDoc.toObject(User::class.java)
-                }
-
-                if (caregiver != null) {
-                    caregivers.add(caregiver)
+                if (caregiverDoc.exists()) {
+                    val caregiver = caregiverDoc.toObject(User::class.java)
+                    if (caregiver != null) {
+                        caregivers.add(caregiver)
+                    }
                 }
             }
 
@@ -229,22 +216,21 @@ class ProfileRepository {
         return try {
             Log.d(tag, "Fetching parents for caregiver $caregiverId")
 
-            // First check in caregivers collection
-            var caregiverDoc = caregiversCollection.document(caregiverId).get().await()
-            var caregiver = caregiverDoc.toObject(User::class.java)
+            // Get the caregiver document from users collection
+            val caregiverDoc = usersCollection.document(caregiverId).get().await()
 
-            // If not found, check in users collection for backward compatibility
-            if (caregiver == null) {
-                caregiverDoc = usersCollection.document(caregiverId).get().await()
-                caregiver = caregiverDoc.toObject(User::class.java)
-            }
-
-            if (caregiver == null) {
+            if (!caregiverDoc.exists()) {
+                Log.e(tag, "Caregiver document not found: $caregiverId")
                 return Result.failure(Exception("Caregiver not found"))
             }
 
-            // Fixed: Safe handling of nullable lists
-            val parentIds = caregiver.parentIds
+            // Get the parent IDs from the document - safely handle the cast by using empty list as default
+            val rawParentIds = caregiverDoc.get("parentIds")
+            val parentIds = if (rawParentIds is List<*>) {
+                rawParentIds.filterIsInstance<String>()
+            } else {
+                emptyList()
+            }
 
             if (parentIds.isEmpty()) {
                 Log.d(tag, "No parents found for caregiver")
@@ -254,18 +240,14 @@ class ProfileRepository {
             // Fetch all parents
             val parents = mutableListOf<User>()
             for (parentId in parentIds) {
-                // First try parents collection
-                var parentDoc = parentsCollection.document(parentId).get().await()
-                var parent = parentDoc.toObject(User::class.java)
+                // Try to get from users collection first
+                val parentDoc = usersCollection.document(parentId).get().await()
 
-                // If not found, try users collection
-                if (parent == null) {
-                    parentDoc = usersCollection.document(parentId).get().await()
-                    parent = parentDoc.toObject(User::class.java)
-                }
-
-                if (parent != null) {
-                    parents.add(parent)
+                if (parentDoc.exists()) {
+                    val parent = parentDoc.toObject(User::class.java)
+                    if (parent != null) {
+                        parents.add(parent)
+                    }
                 }
             }
 
@@ -281,8 +263,20 @@ class ProfileRepository {
         return try {
             Log.d(tag, "Searching for user with email: $email")
 
-            // First search in parents collection
-            var querySnapshot = parentsCollection.whereEqualTo("email", email)
+            // Search in users collection first (preferred)
+            var querySnapshot = usersCollection.whereEqualTo("email", email)
+                .limit(1)
+                .get()
+                .await()
+
+            if (!querySnapshot.isEmpty) {
+                val user = querySnapshot.documents[0].toObject(User::class.java)
+                Log.d(tag, "Found user with email: $email, id: ${user?.id}")
+                return Result.success(user)
+            }
+
+            // Then search in parents collection as fallback
+            querySnapshot = parentsCollection.whereEqualTo("email", email)
                 .limit(1)
                 .get()
                 .await()
@@ -293,7 +287,7 @@ class ProfileRepository {
                 return Result.success(user)
             }
 
-            // Then search in caregivers collection
+            // Finally search in caregivers collection as fallback
             querySnapshot = caregiversCollection.whereEqualTo("email", email)
                 .limit(1)
                 .get()
@@ -302,18 +296,6 @@ class ProfileRepository {
             if (!querySnapshot.isEmpty) {
                 val user = querySnapshot.documents[0].toObject(User::class.java)
                 Log.d(tag, "Found caregiver with email: $email, id: ${user?.id}")
-                return Result.success(user)
-            }
-
-            // Finally search in users collection for backward compatibility
-            querySnapshot = usersCollection.whereEqualTo("email", email)
-                .limit(1)
-                .get()
-                .await()
-
-            if (!querySnapshot.isEmpty) {
-                val user = querySnapshot.documents[0].toObject(User::class.java)
-                Log.d(tag, "Found user with email: $email, id: ${user?.id}")
                 return Result.success(user)
             }
 

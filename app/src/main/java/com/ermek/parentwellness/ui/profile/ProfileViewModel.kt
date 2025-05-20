@@ -15,40 +15,52 @@ class ProfileViewModel(
     private val authRepository: AuthRepository = AuthRepository(),
     private val profileRepository: ProfileRepository = ProfileRepository()
 ) : ViewModel() {
-    private val TAG = "ProfileViewModel"
+    private val tag = "ProfileViewModel"  // Fixed: Changed from TAG to tag (lowercase)
 
+    // Current user state
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
+    // Loading state
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    // Error state
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    // Profile updated state
+    private val _profileUpdated = MutableStateFlow(false)
+    val profileUpdated: StateFlow<Boolean> = _profileUpdated.asStateFlow()
 
     init {
         loadCurrentUser()
     }
 
-    fun loadCurrentUser() {
+    fun loadCurrentUser(forceRefresh: Boolean = false) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
 
+            // Reset profile updated state when loading user
+            if (forceRefresh) {
+                _profileUpdated.value = false
+            }
+
             try {
-                Log.d(TAG, "Loading current user data")
+                Log.d(tag, "Loading current user data${if (forceRefresh) " (forced)" else ""}")
                 // Get the current user directly from AuthRepository
                 val user = authRepository.getCurrentUser()
 
                 if (user != null) {
-                    Log.d(TAG, "User loaded successfully: ${user.fullName}")
+                    Log.d(tag, "User loaded successfully: ${user.fullName}")
                     _currentUser.value = user
                 } else {
-                    Log.w(TAG, "User not signed in or profile not found")
+                    Log.w(tag, "User not signed in or profile not found")
                     _error.value = "User not signed in or profile not found"
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading user data", e)
+                Log.e(tag, "Error loading user data", e)
                 _error.value = e.message ?: "Unknown error occurred"
             } finally {
                 _isLoading.value = false
@@ -60,27 +72,45 @@ class ProfileViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
+            _profileUpdated.value = false // Reset the state before updating
 
             try {
-                Log.d(TAG, "Updating user profile: ${user.fullName}")
-                // Use the repository to update user profile
-                val result = profileRepository.saveUserProfile(user)
+                Log.d(tag, "Updating user profile: ${user.fullName}")
 
-                if (result.isSuccess) {
+                // First try with AuthRepository (using updateProfile method we added)
+                val authResult = authRepository.updateProfile(user)  // Fixed: Changed from updateUserProfile to updateProfile
+
+                if (authResult.isSuccess) {
                     // Update current user state with new data
-                    _currentUser.value = result.getOrNull()
-                    Log.d(TAG, "User profile updated successfully")
+                    _currentUser.value = authResult.getOrNull()
+                    _profileUpdated.value = true // Mark as updated
+                    Log.d(tag, "User profile updated successfully via AuthRepository")
                 } else {
-                    val exception = result.exceptionOrNull()
-                    Log.e(TAG, "Failed to update profile", exception)
-                    _error.value = exception?.message ?: "Failed to update profile"
+                    // Fall back to ProfileRepository
+                    val result = profileRepository.saveUserProfile(user)
+
+                    if (result.isSuccess) {
+                        // Update current user state with new data
+                        _currentUser.value = result.getOrNull()
+                        _profileUpdated.value = true // Mark as updated
+                        Log.d(tag, "User profile updated successfully via ProfileRepository")
+                    } else {
+                        val exception = result.exceptionOrNull()
+                        Log.e(tag, "Failed to update profile", exception)
+                        _error.value = exception?.message ?: "Failed to update profile"
+                    }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error updating user profile", e)
+                Log.e(tag, "Error updating user profile", e)
                 _error.value = e.message ?: "Failed to update profile"
             } finally {
                 _isLoading.value = false
             }
         }
+    }
+
+    // Reset the profile updated state - useful when navigating away or when you need to reset
+    fun resetProfileUpdatedState() {
+        _profileUpdated.value = false
     }
 }

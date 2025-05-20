@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import com.ermek.parentwellness.data.generators.SimulatedDataGenerator
+import com.ermek.parentwellness.data.model.HealthData
+import com.ermek.parentwellness.data.repository.HealthRepository
 
 class HealthDataViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = HealthDataRepository(application.applicationContext)
@@ -99,7 +102,7 @@ class HealthDataViewModel(application: Application) : AndroidViewModel(applicati
 
                 calendar.apply {
                     when (timeRange) {
-                        TimeRange.DAY -> add(Calendar.DAY_OF_YEAR, -1)  // Add case for DAY
+                        TimeRange.DAY -> add(Calendar.DAY_OF_YEAR, -1)
                         TimeRange.WEEK -> add(Calendar.DAY_OF_YEAR, -7)
                         TimeRange.MONTH -> add(Calendar.MONTH, -1)
                         TimeRange.YEAR -> add(Calendar.YEAR, -1)
@@ -189,5 +192,165 @@ class HealthDataViewModel(application: Application) : AndroidViewModel(applicati
     fun refreshData() {
         loadAllHealthData()
     }
-}
 
+    // Implement the missing load methods
+    private fun loadHeartRateData() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+
+            try {
+                repository.getHeartRateReadings().collect {
+                    _heartRateData.value = it
+                }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to load heart rate data"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    private fun loadBloodPressureData() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+
+            try {
+                repository.getBloodPressureReadings().collect {
+                    _bloodPressureData.value = it
+                }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to load blood pressure data"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    private fun loadBloodSugarData() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+
+            try {
+                repository.getBloodSugarReadings().collect {
+                    _bloodSugarData.value = it
+                }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to load blood sugar data"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    private fun loadStepsData() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+
+            try {
+                repository.getStepsReadings().collect {
+                    _stepsData.value = it
+                }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to load steps data"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    // Fixed generateSimulatedData function
+    fun generateSimulatedData(
+        metricType: String,
+        profile: SimulatedDataGenerator.Companion.UserProfile,
+        period: SimulatedDataGenerator.Companion.TimePeriod,
+        includeAnomalies: Boolean
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            try {
+                // Create repository without Application parameter
+                val healthRepository = HealthRepository()
+                val result = healthRepository.generateSimulatedData(
+                    metricType = metricType,
+                    profile = profile,
+                    period = period,
+                    includeAnomalies = includeAnomalies
+                )
+
+                if (result.isSuccess) {
+                    // Refresh the data to show the new simulated values
+                    when (metricType) {
+                        HealthData.TYPE_HEART_RATE -> loadHeartRateData()
+                        HealthData.TYPE_BLOOD_PRESSURE -> loadBloodPressureData()
+                        HealthData.TYPE_BLOOD_SUGAR -> loadBloodSugarData()
+                        HealthData.TYPE_STEPS -> loadStepsData()
+                    }
+                } else {
+                    _error.value = result.exceptionOrNull()?.message ?: "Failed to generate data"
+                }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "An error occurred"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    // Convenience methods for specific metric types
+    fun generateHeartRateData(
+        profile: SimulatedDataGenerator.Companion.UserProfile = SimulatedDataGenerator.Companion.UserProfile.HEALTHY,
+        period: SimulatedDataGenerator.Companion.TimePeriod = SimulatedDataGenerator.Companion.TimePeriod.MONTH,
+        includeAnomalies: Boolean = true
+    ) {
+        generateSimulatedData(
+            metricType = HealthData.TYPE_HEART_RATE,
+            profile = profile,
+            period = period,
+            includeAnomalies = includeAnomalies
+        )
+    }
+
+    fun generateBloodPressureData(
+        profile: SimulatedDataGenerator.Companion.UserProfile = SimulatedDataGenerator.Companion.UserProfile.HEALTHY,
+        period: SimulatedDataGenerator.Companion.TimePeriod = SimulatedDataGenerator.Companion.TimePeriod.MONTH,
+        includeAnomalies: Boolean = true
+    ) {
+        generateSimulatedData(
+            metricType = HealthData.TYPE_BLOOD_PRESSURE,
+            profile = profile,
+            period = period,
+            includeAnomalies = includeAnomalies
+        )
+    }
+
+    fun generateBloodSugarData(
+        profile: SimulatedDataGenerator.Companion.UserProfile = SimulatedDataGenerator.Companion.UserProfile.HEALTHY,
+        period: SimulatedDataGenerator.Companion.TimePeriod = SimulatedDataGenerator.Companion.TimePeriod.MONTH,
+        includeAnomalies: Boolean = true
+    ) {
+        generateSimulatedData(
+            metricType = HealthData.TYPE_BLOOD_SUGAR,
+            profile = profile,
+            period = period,
+            includeAnomalies = includeAnomalies
+        )
+    }
+
+    fun generateStepsData(
+        profile: SimulatedDataGenerator.Companion.UserProfile = SimulatedDataGenerator.Companion.UserProfile.HEALTHY,
+        period: SimulatedDataGenerator.Companion.TimePeriod = SimulatedDataGenerator.Companion.TimePeriod.MONTH,
+        includeAnomalies: Boolean = true
+    ) {
+        generateSimulatedData(
+            metricType = HealthData.TYPE_STEPS,
+            profile = profile,
+            period = period,
+            includeAnomalies = includeAnomalies
+        )
+    }
+}

@@ -1,7 +1,9 @@
 package com.ermek.parentwellness.data.repository
 
 import android.util.Log
+import com.ermek.parentwellness.data.generators.AlertGenerator
 import com.ermek.parentwellness.data.model.HealthData
+import com.ermek.parentwellness.data.generators.SimulatedDataGenerator
 import com.ermek.parentwellness.ui.components.HealthDataEntry
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.Query
@@ -19,8 +21,6 @@ class HealthRepository {
     private val auth = Firebase.auth
     private val firestore = Firebase.firestore
     private val healthDataCollection = firestore.collection("health_data")
-
-    // Removed unused Flow import
 
     /**
      * Save health data entry to Firestore
@@ -141,46 +141,79 @@ class HealthRepository {
     }
 
     /**
-     * Generate simulated health data (for testing)
+     * Enhanced simulated data generation that uses SimulatedDataGenerator
      */
-    suspend fun generateSimulatedData(metricType: String, count: Int = 10): Result<List<HealthData>> {
-        try {
-            val userId = auth.currentUser?.uid ?: return Result.failure(Exception("User not logged in"))
-            Log.d(tag, "Generating $count simulated $metricType records")
+    // Update the generateSimulatedData method
+    suspend fun generateSimulatedData(
+        metricType: String,
+        profile: SimulatedDataGenerator.Companion.UserProfile = SimulatedDataGenerator.Companion.UserProfile.HEALTHY,
+        period: SimulatedDataGenerator.Companion.TimePeriod = SimulatedDataGenerator.Companion.TimePeriod.MONTH,
+        includeAnomalies: Boolean = true,
+        generateAlerts: Boolean = true
+    ): Result<List<HealthData>> {
+        return try {
+            val userId = auth.currentUser?.uid ?:
+            return Result.failure(Exception("User not logged in"))
 
-            val simulatedData = mutableListOf<HealthData>()
-            val currentTime = System.currentTimeMillis()
-            val dayInMillis = 24 * 60 * 60 * 1000L
+            Log.d(tag, "Generating simulated $metricType data")
 
-            for (i in 0 until count) {
-                val timestamp = currentTime - (i * dayInMillis / count)
-                val healthData = when (metricType) {
-                    HealthData.TYPE_HEART_RATE -> createSimulatedHeartRate(userId, timestamp)
-                    HealthData.TYPE_BLOOD_PRESSURE -> createSimulatedBloodPressure(userId, timestamp)
-                    HealthData.TYPE_BLOOD_SUGAR -> createSimulatedBloodSugar(userId, timestamp)
-                    HealthData.TYPE_STEPS -> createSimulatedSteps(userId, timestamp)
-                    else -> continue
-                }
+            // Delete existing simulated data for this metric type
+            deleteExistingSimulatedData(userId, metricType)
 
-                // Generate a document ID
-                val docId = UUID.randomUUID().toString()
-                healthData.id = docId
+            // Generate data using our new simulator
+            val healthData = SimulatedDataGenerator.generateHealthData(
+                userId = userId,
+                metric = metricType,
+                profile = profile,
+                period = period,
+                includeAnomalies = includeAnomalies
+            )
 
-                // Save to Firestore
-                healthDataCollection.document(docId).set(healthData).await()
-                simulatedData.add(healthData)
+            // Save data to Firestore
+            healthData.forEach { data ->
+                healthDataCollection.document(data.id).set(data).await()
+                Log.d(tag, "Saved simulated ${data.metricType} data: ${data.id}")
             }
 
-            // Refresh data
-            getHealthDataByType(metricType)
+            // Optionally generate alerts
+            if (generateAlerts && includeAnomalies) {
+                val alertGenerator = AlertGenerator()
+                val alerts = alertGenerator.generateAlertsForHealthData(userId, healthData)
+                Log.d(tag, "Generated ${alerts.size} alerts for $metricType data")
+            }
 
-            Log.d(tag, "Generated ${simulatedData.size} simulated $metricType records")
-            return Result.success(simulatedData)
+            Log.d(tag, "Generated ${healthData.size} simulated $metricType records")
+            Result.success(healthData)
         } catch (e: Exception) {
             Log.e(tag, "Error generating simulated data", e)
-            return Result.failure(e)
+            Result.failure(e)
         }
     }
+
+    /**
+     * Delete existing simulated data for a specific metric type
+     */
+    private suspend fun deleteExistingSimulatedData(userId: String, metricType: String) {
+        try {
+            val snapshot = healthDataCollection
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("metricType", metricType)
+                .whereEqualTo("source", HealthData.SOURCE_SIMULATOR)
+                .get()
+                .await()
+
+            for (doc in snapshot.documents) {
+                healthDataCollection.document(doc.id).delete().await()
+            }
+
+            Log.d(tag, "Deleted ${snapshot.size()} existing simulated $metricType records")
+        } catch (e: Exception) {
+            Log.e(tag, "Error deleting existing simulated data", e)
+            // Continue with generation even if deletion fails
+        }
+    }
+
+    // Keep the original simple simulation methods for backward compatibility
 
     private fun createSimulatedHeartRate(userId: String, timestamp: Long): HealthData {
         val baseHeartRate = 72.0
@@ -250,5 +283,45 @@ class HealthRepository {
             source = HealthData.SOURCE_SIMULATOR,
             createdAt = System.currentTimeMillis()
         )
+    }
+
+    // Simple simulation method - for backward compatibility
+    suspend fun generateSimulatedData(metricType: String, count: Int = 10): Result<List<HealthData>> {
+        try {
+            val userId = auth.currentUser?.uid ?: return Result.failure(Exception("User not logged in"))
+            Log.d(tag, "Generating $count simulated $metricType records")
+
+            val simulatedData = mutableListOf<HealthData>()
+            val currentTime = System.currentTimeMillis()
+            val dayInMillis = 24 * 60 * 60 * 1000L
+
+            for (i in 0 until count) {
+                val timestamp = currentTime - (i * dayInMillis / count)
+                val healthData = when (metricType) {
+                    HealthData.TYPE_HEART_RATE -> createSimulatedHeartRate(userId, timestamp)
+                    HealthData.TYPE_BLOOD_PRESSURE -> createSimulatedBloodPressure(userId, timestamp)
+                    HealthData.TYPE_BLOOD_SUGAR -> createSimulatedBloodSugar(userId, timestamp)
+                    HealthData.TYPE_STEPS -> createSimulatedSteps(userId, timestamp)
+                    else -> continue
+                }
+
+                // Generate a document ID
+                val docId = UUID.randomUUID().toString()
+                healthData.id = docId
+
+                // Save to Firestore
+                healthDataCollection.document(docId).set(healthData).await()
+                simulatedData.add(healthData)
+            }
+
+            // Refresh data
+            getHealthDataByType(metricType)
+
+            Log.d(tag, "Generated ${simulatedData.size} simulated $metricType records")
+            return Result.success(simulatedData)
+        } catch (e: Exception) {
+            Log.e(tag, "Error generating simulated data", e)
+            return Result.failure(e)
+        }
     }
 }

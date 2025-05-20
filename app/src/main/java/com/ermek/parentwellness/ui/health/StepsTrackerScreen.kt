@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ermek.parentwellness.ui.components.TimeRangeSelector
 import com.ermek.parentwellness.ui.theme.PrimaryRed
+import com.ermek.parentwellness.ui.components.SimulatedDataControls
+import com.ermek.parentwellness.data.model.HealthData
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -92,6 +94,12 @@ fun StepsTrackerScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
+                // Add SimulatedDataControls at the top
+                SimulatedDataControls(
+                    viewModel = healthDataViewModel,
+                    metricType = HealthData.TYPE_STEPS
+                )
+
                 // Today's progress
                 Card(
                     modifier = Modifier.fillMaxWidth(),

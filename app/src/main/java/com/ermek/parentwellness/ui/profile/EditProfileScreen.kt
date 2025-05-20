@@ -1,3 +1,4 @@
+// EditProfileScreen.kt
 package com.ermek.parentwellness.ui.profile
 
 import androidx.compose.foundation.background
@@ -7,21 +8,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Wc
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ermek.parentwellness.data.model.User
+import com.ermek.parentwellness.ui.components.GenderDropdown
+import com.ermek.parentwellness.ui.components.PhoneNumberInput
 import com.ermek.parentwellness.ui.theme.PrimaryRed
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,6 +30,8 @@ fun EditProfileScreen(
 ) {
     val userState by viewModel.currentUser.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val profileUpdated by viewModel.profileUpdated.collectAsState()
 
     // Local state for form fields
     var fullName by remember { mutableStateOf("") }
@@ -51,6 +51,13 @@ fun EditProfileScreen(
             phoneNumber = user.phoneNumber
             gender = user.gender
             birthDate = user.birthDate
+        }
+    }
+
+    // Navigate back when profile is updated
+    LaunchedEffect(profileUpdated) {
+        if (profileUpdated) {
+            onNavigateBack()
         }
     }
 
@@ -101,51 +108,20 @@ fun EditProfileScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Phone Number
-                OutlinedTextField(
-                    value = phoneNumber,
-                    onValueChange = { phoneNumber = it },
-                    label = { Text("Phone Number") },
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Phone,
-                            contentDescription = null,
-                            tint = PrimaryRed
-                        )
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Phone,
-                        imeAction = ImeAction.Next
-                    ),
-                    singleLine = true
+                // Phone Number with custom component
+                PhoneNumberInput(
+                    phoneNumber = phoneNumber,
+                    onPhoneNumberChange = { phoneNumber = it },
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Gender selection
-                OutlinedTextField(
-                    value = gender,
-                    onValueChange = { gender = it },
-                    label = { Text("Gender") },
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Wc,
-                            contentDescription = null,
-                            tint = PrimaryRed
-                        )
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Next
-                    ),
-                    trailingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Select Gender"
-                        )
-                    },
-                    singleLine = true
+                // Gender dropdown
+                GenderDropdown(
+                    selectedGender = gender,
+                    onGenderSelected = { gender = it },
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -164,7 +140,6 @@ fun EditProfileScreen(
                         )
                     },
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Done
                     ),
                     singleLine = true
@@ -182,7 +157,6 @@ fun EditProfileScreen(
                                 birthDate = birthDate
                             )
                             viewModel.updateUserProfile(updatedUser)
-                            onNavigateBack()
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

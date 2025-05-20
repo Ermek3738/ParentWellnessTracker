@@ -1,4 +1,4 @@
-package com.ermek.parentwellness.ui.profile
+package com.ermek.parentwellness.ui.caregiver
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -9,60 +9,48 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ermek.parentwellness.ui.profile.ProfileViewModel
 import com.ermek.parentwellness.ui.theme.PrimaryRed
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(
+fun CaregiverProfileScreen(
+    onNavigateBack: () -> Unit,
     onSignOut: () -> Unit,
     onEditProfile: () -> Unit,
-    onNavigateToManageCaregivers: () -> Unit,
-    onNavigateToEmergencyContacts: () -> Unit,
+    onManageParents: () -> Unit,
     onSwitchRole: () -> Unit = {},
-    showRoleSwitcher: Boolean = false,
-    viewModel: ProfileViewModel = viewModel(),
-    onNavigateToSettings: () -> Unit
+    showRoleSwitcher: Boolean,
+    viewModel: ProfileViewModel = viewModel()
 ) {
     // State to hold user data
     val userState by viewModel.currentUser.collectAsState()
 
-    // Loading state
-    val isLoading by viewModel.isLoading.collectAsState()
-
-    // State to track if we're returning from editing
-    val wasProfileUpdated by viewModel.profileUpdated.collectAsState()
-
-    // Effect to properly fetch user data when the screen appears
-    LaunchedEffect(Unit) {
+    // Effect to load user when screen is displayed
+    LaunchedEffect(key1 = Unit) {
         viewModel.loadCurrentUser()
     }
 
-    // If we're returning from editing, force a fresh data load
-    LaunchedEffect(wasProfileUpdated) {
-        if (wasProfileUpdated) {
-            viewModel.loadCurrentUser(forceRefresh = true)
-        }
-    }
+    // Loading state
+    val isLoading by viewModel.isLoading.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Profile") },
+                title = { Text("Caregiver Profile") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.White
                 ),
@@ -114,8 +102,7 @@ fun ProfileScreen(
                             .size(36.dp)
                             .clip(CircleShape)
                             .background(PrimaryRed)
-                            .padding(8.dp)
-                            .clickable { onEditProfile() },
+                            .padding(8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -144,10 +131,57 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Role badge instead of simple text
-                RoleBadge(isParent = user.isParent)
+                // Role badge
+                Surface(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.Blue.copy(alpha = 0.1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = Color.Blue,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Caregiver",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Blue,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
+
+                // Role switcher (only shown if user has both roles)
+                if (showRoleSwitcher) {
+                    Button(
+                        onClick = onSwitchRole,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryRed
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.CompareArrows,
+                            contentDescription = "Switch Role",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Switch to Parent Mode",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
 
                 // Personal Info Card
                 Card(
@@ -211,72 +245,6 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Role switcher (only shown if user has both roles)
-                if (showRoleSwitcher) {
-                    Button(
-                        onClick = onSwitchRole,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (user.isParent) Color.Blue else PrimaryRed
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.CompareArrows,
-                            contentDescription = "Switch Role",
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Switch to ${if (user.isParent) "Caregiver" else "Parent"} Mode",
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                    }
-                }
-
-                // Health Settings Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Health Settings",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                        SettingsItem(
-                            icon = Icons.Default.Favorite,
-                            title = "Heart Rate Alerts",
-                            subtitle = "Set your heart rate alert thresholds"
-                        )
-
-                        SettingsItem(
-                            icon = Icons.AutoMirrored.Filled.ShowChart,
-                            title = "Blood Pressure Targets",
-                            subtitle = "Customize your blood pressure goals"
-                        )
-
-                        SettingsItem(
-                            icon = Icons.Default.Opacity,
-                            title = "Blood Sugar Range",
-                            subtitle = "Configure your ideal blood sugar range"
-                        )
-
-                        SettingsItem(
-                            icon = Icons.AutoMirrored.Filled.DirectionsWalk,
-                            title = "Activity Goals",
-                            subtitle = "Set your daily step and activity targets"
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
                 // App Settings Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -292,40 +260,39 @@ fun ProfileScreen(
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                         SettingsItem(
-                            icon = Icons.Default.Settings,
-                            title = "App Preferences",
-                            subtitle = "Configure application settings",
-                            onClick = onNavigateToSettings
+                            icon = Icons.Default.People,
+                            title = "Manage Parents",
+                            subtitle = "View and add parents you're caring for",
+                            onClick = onManageParents
                         )
 
                         SettingsItem(
                             icon = Icons.Default.Notifications,
                             title = "Notification Settings",
-                            subtitle = "Configure how you receive alerts"
-                        )
-
-
-                        SettingsItem(
-                            icon = Icons.Default.Watch,
-                            title = "Connected Devices",
-                            subtitle = "Manage your Samsung Galaxy Watch4"
+                            subtitle = "Configure how you receive alerts",
+                            onClick = { /* Open notification settings */ }
                         )
 
                         SettingsItem(
-                            icon = Icons.Default.Call,
-                            title = "Emergency Contacts",
-                            subtitle = "Manage your emergency contacts",
-                            onClick = onNavigateToEmergencyContacts
+                            icon = Icons.Default.Security,
+                            title = "Privacy & Security",
+                            subtitle = "Manage data sharing and security settings",
+                            onClick = { /* Open privacy settings */ }
                         )
 
-                        if (user.isParent) {
-                            SettingsItem(
-                                icon = Icons.Default.People,
-                                title = "Manage Caregivers",
-                                subtitle = "Add or remove people who can monitor your health",
-                                onClick = onNavigateToManageCaregivers
-                            )
-                        }
+                        SettingsItem(
+                            icon = Icons.AutoMirrored.Filled.Help,
+                            title = "Help & Support",
+                            subtitle = "Get assistance with the app",
+                            onClick = { /* Open help center */ }
+                        )
+
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "About",
+                            subtitle = "Learn about Parent Wellness",
+                            onClick = { /* Open about page */ }
+                        )
                     }
                 }
 
@@ -379,7 +346,7 @@ fun ProfileScreen(
                     Text("Unable to load profile data")
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
-                        onClick = { viewModel.loadCurrentUser(forceRefresh = true) },
+                        onClick = { viewModel.loadCurrentUser() },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed)
                     ) {
                         Text("Retry")
@@ -391,43 +358,8 @@ fun ProfileScreen(
 }
 
 @Composable
-fun RoleBadge(isParent: Boolean) {
-    val (backgroundColor, contentColor, text) = if (isParent) {
-        Triple(PrimaryRed.copy(alpha = 0.1f), PrimaryRed, "Parent")
-    } else {
-        Triple(Color.Blue.copy(alpha = 0.1f), Color.Blue, "Caregiver")
-    }
-
-    Surface(
-        modifier = Modifier
-            .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = backgroundColor
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = if (isParent) Icons.Default.Person else Icons.Default.Favorite,
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
 fun ProfileInfoItem(
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     value: String
 ) {
@@ -440,7 +372,7 @@ fun ProfileInfoItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = PrimaryRed,
+            tint = Color.Blue,
             modifier = Modifier.size(24.dp)
         )
 
@@ -464,7 +396,7 @@ fun ProfileInfoItem(
 
 @Composable
 fun SettingsItem(
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
     onClick: (() -> Unit)? = null
@@ -473,13 +405,13 @@ fun SettingsItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp)
-            .clickable(enabled = onClick != null) { onClick?.invoke() },
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = PrimaryRed,
+            tint = Color.Blue,
             modifier = Modifier.size(24.dp)
         )
 

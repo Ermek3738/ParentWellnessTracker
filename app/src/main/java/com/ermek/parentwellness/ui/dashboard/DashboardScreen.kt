@@ -58,6 +58,7 @@ import com.ermek.parentwellness.ui.theme.PrimaryLightRed
 import com.ermek.parentwellness.ui.theme.PrimaryRed
 import com.ermek.parentwellness.ui.theme.White
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun DashboardScreen(
@@ -77,6 +78,13 @@ fun DashboardScreen(
     val user by viewModel.user.collectAsState()
     val heartRate by viewModel.heartRate.collectAsState()
     val stepCount by viewModel.stepCount.collectAsState()
+
+    // Add this effect to refresh data when the screen becomes active
+    LaunchedEffect(Unit) {
+        if (viewModel.isDemoModeEnabled()) {
+            viewModel.updateDashboardWithSimulatedData()
+        }
+    }
 
     Scaffold(
         bottomBar = {

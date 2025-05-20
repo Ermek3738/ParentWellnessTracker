@@ -1,17 +1,17 @@
 package com.ermek.parentwellness.ui.caregiver
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,7 +23,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ermek.parentwellness.data.model.User
-import com.ermek.parentwellness.ui.theme.PrimaryRed
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,13 +33,23 @@ fun CaregiverDashboardScreen(
     onNavigateToBloodPressure: () -> Unit,
     onNavigateToBloodSugar: () -> Unit,
     onNavigateToStepsTracker: () -> Unit,
+    onNavigateToEmergencyContact: () -> Unit = {},
     onSwitchToParentMode: () -> Unit = {},
+    onNavigateToReports: () -> Unit,
+    onNavigateToAlerts: () -> Unit,
+    onNavigateToProfile: () -> Unit,
     viewModel: CaregiverViewModel = viewModel()
 ) {
     val parents by viewModel.parents.collectAsState()
     val selectedParent by viewModel.selectedParent.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+
+    // Health data for the selected parent
+    val heartRate by viewModel.parentHeartRate.collectAsState()
+    val bloodPressure by viewModel.parentBloodPressure.collectAsState()
+    val bloodSugar by viewModel.parentBloodSugar.collectAsState()
+    val steps by viewModel.parentSteps.collectAsState()
 
     // Call this to load parents when the screen appears
     LaunchedEffect(Unit) {
@@ -63,6 +72,68 @@ fun CaregiverDashboardScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color.White,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                    label = { Text("Home") },
+                    selected = true,
+                    onClick = { /* already on home */ },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.Blue,
+                        selectedTextColor = Color.Blue,
+                        indicatorColor = Color.White,
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Assessment, contentDescription = "Reports") },
+                    label = { Text("Reports") },
+                    selected = false,
+                    onClick = onNavigateToReports,
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.Blue,
+                        selectedTextColor = Color.Blue,
+                        indicatorColor = Color.White,
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Notifications, contentDescription = "Alerts") },
+                    label = { Text("Alerts") },
+                    selected = false,
+                    onClick = onNavigateToAlerts,
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.Blue,
+                        selectedTextColor = Color.Blue,
+                        indicatorColor = Color.White,
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+                    label = { Text("Profile") },
+                    selected = false,
+                    onClick = onNavigateToProfile,
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.Blue,
+                        selectedTextColor = Color.Blue,
+                        indicatorColor = Color.White,
+                        unselectedIconColor = Color.Gray,
+                        unselectedTextColor = Color.Gray
+                    )
+                )
+            }
         }
     ) { paddingValues ->
         Box(
@@ -73,7 +144,7 @@ fun CaregiverDashboardScreen(
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
-                    color = PrimaryRed
+                    color = Color.Blue
                 )
             } else if (error != null) {
                 Column(
@@ -83,6 +154,15 @@ fun CaregiverDashboardScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(48.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Text(
                         text = "Error: $error",
                         color = MaterialTheme.colorScheme.error,
@@ -94,9 +174,11 @@ fun CaregiverDashboardScreen(
                     Button(
                         onClick = { viewModel.loadParentsForCurrentUser() },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = PrimaryRed
+                            containerColor = Color.Blue
                         )
                     ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("Retry")
                     }
                 }
@@ -137,7 +219,7 @@ fun CaregiverDashboardScreen(
                     Button(
                         onClick = onNavigateToManageParents,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = PrimaryRed
+                            containerColor = Color.Blue
                         )
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null)
@@ -172,7 +254,7 @@ fun CaregiverDashboardScreen(
                                     .fillMaxWidth()
                                     .padding(vertical = 8.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = PrimaryRed
+                                    containerColor = Color.Blue
                                 )
                             ) {
                                 Text(parent.fullName)
@@ -230,7 +312,7 @@ fun CaregiverDashboardScreen(
                                     )
 
                                     Text(
-                                        text = "72 BPM",
+                                        text = "${heartRate ?: "--"} BPM",
                                         style = MaterialTheme.typography.headlineMedium,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -286,7 +368,7 @@ fun CaregiverDashboardScreen(
                                     )
 
                                     Text(
-                                        text = "120/80 mmHg",
+                                        text = bloodPressure ?: "--/-- mmHg",
                                         style = MaterialTheme.typography.headlineMedium,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -342,7 +424,7 @@ fun CaregiverDashboardScreen(
                                     )
 
                                     Text(
-                                        text = "95 mg/dL",
+                                        text = "${bloodSugar ?: "--"} mg/dL",
                                         style = MaterialTheme.typography.headlineMedium,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -398,13 +480,16 @@ fun CaregiverDashboardScreen(
                                     )
 
                                     Text(
-                                        text = "8,467",
+                                        text = "${steps ?: "--"}",
                                         style = MaterialTheme.typography.headlineMedium,
                                         fontWeight = FontWeight.Bold
                                     )
 
+                                    // Calculate progress based on steps
+                                    val progress = steps?.let { it * 100 / 10000 } ?: 0
+
                                     Text(
-                                        text = "84% of daily goal",
+                                        text = "$progress% of daily goal",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = Color(0xFFFF9800) // Orange
                                     )
@@ -423,7 +508,7 @@ fun CaregiverDashboardScreen(
 
                     // Emergency contact button
                     Button(
-                        onClick = { /* TODO: Implement emergency contact functionality */ },
+                        onClick = onNavigateToEmergencyContact,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Red
@@ -432,6 +517,20 @@ fun CaregiverDashboardScreen(
                         Icon(Icons.Default.Call, contentDescription = "Call")
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Emergency Contact")
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Pull to refresh message
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Pull down to refresh data",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -470,13 +569,13 @@ fun ParentSelector(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                        .background(Color.Blue.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = selectedParent.fullName.firstOrNull()?.toString() ?: "?",
                         style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
+                        color = Color.Blue
                     )
                 }
 
@@ -492,7 +591,7 @@ fun ParentSelector(
                     )
 
                     Text(
-                        text = "Last updated: 5 minutes ago",
+                        text = "Last updated: just now",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
@@ -525,13 +624,13 @@ fun ParentSelector(
                                             modifier = Modifier
                                                 .size(32.dp)
                                                 .clip(CircleShape)
-                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                                .background(Color.Blue.copy(alpha = 0.1f)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 text = parent.fullName.firstOrNull()?.toString() ?: "?",
                                                 style = MaterialTheme.typography.bodyLarge,
-                                                color = MaterialTheme.colorScheme.primary
+                                                color = Color.Blue
                                             )
                                         }
                                     },
@@ -540,7 +639,7 @@ fun ParentSelector(
                                             Icon(
                                                 imageVector = Icons.Default.Check,
                                                 contentDescription = "Selected",
-                                                tint = MaterialTheme.colorScheme.primary
+                                                tint = Color.Blue
                                             )
                                         }
                                     } else null

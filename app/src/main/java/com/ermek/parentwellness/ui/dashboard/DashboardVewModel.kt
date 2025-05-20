@@ -1,13 +1,17 @@
 package com.ermek.parentwellness.ui.dashboard
 
 import android.app.Application
+import android.content.Context
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ermek.parentwellness.data.model.User
 import com.ermek.parentwellness.data.repository.AuthRepository
+import com.ermek.parentwellness.data.repository.HealthDataRepository
 import com.ermek.parentwellness.data.samsung.SamsungHealthSensorManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class DashboardViewModel(
@@ -62,6 +66,58 @@ class DashboardViewModel(
                 e.printStackTrace()
             }
         }
+    }
+    fun updateDashboardWithSimulatedData() {
+        viewModelScope.launch {
+            try {
+                // Create health data repository
+                val healthRepository = HealthDataRepository(getApplication())
+
+                // Get the latest heart rate data
+                try {
+                    val heartRateList = healthRepository.getHeartRateReadings().first()
+                    if (heartRateList.isNotEmpty()) {
+                        // Get the most recent heart rate reading
+                        val latestHeartRate = heartRateList.maxByOrNull { it.timestamp }
+                        latestHeartRate?.let {
+                            _heartRate.value = it.heartRate
+                            Log.d("DashboardViewModel", "Updated heart rate to ${it.heartRate}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("DashboardViewModel", "Error updating heart rate", e)
+                }
+
+                // Get the latest steps data
+                try {
+                    val stepsList = healthRepository.getStepsReadings().first()
+                    if (stepsList.isNotEmpty()) {
+                        // Get the most recent steps reading
+                        val latestSteps = stepsList.maxByOrNull { it.timestamp }
+                        latestSteps?.let {
+                            _stepCount.value = it.steps
+                            Log.d("DashboardViewModel", "Updated steps to ${it.steps}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("DashboardViewModel", "Error updating steps", e)
+                }
+            } catch (e: Exception) {
+                Log.e("DashboardViewModel", "Error updating dashboard with simulated data", e)
+            }
+        }
+    }
+
+    fun isDemoModeEnabled(): Boolean {
+        val prefs = getApplication<android.app.Application>().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        return prefs.getBoolean("demo_mode_enabled", false)
+    }
+
+    fun setDemoModeEnabled(enabled: Boolean) {
+        getApplication<android.app.Application>().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("demo_mode_enabled", enabled)
+            .apply()
     }
 
     fun refreshData() {

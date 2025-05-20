@@ -18,8 +18,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ermek.parentwellness.ui.components.BloodSugarChart
 import com.ermek.parentwellness.ui.components.TimeRangeSelector
 import com.ermek.parentwellness.ui.theme.PrimaryRed
+import com.ermek.parentwellness.ui.components.SimulatedDataControls
+import com.ermek.parentwellness.data.model.HealthData
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -78,7 +81,11 @@ fun BloodSugarScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
-                // Average stats
+                SimulatedDataControls(
+                    viewModel = healthDataViewModel,
+                    metricType = HealthData.TYPE_BLOOD_SUGAR
+                )
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -97,7 +104,6 @@ fun BloodSugarScreen(
                     StatisticItem(value = minBloodSugar.toString(), label = "Minimum")
                 }
 
-                // Time range selector
                 TimeRangeSelector(
                     onRangeSelected = { timeRange ->
                         healthDataViewModel.loadDataByTimeRange(timeRange)
@@ -106,29 +112,15 @@ fun BloodSugarScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Chart placeholder
-                Box(
+                BloodSugarChart(
+                    data = bloodSugarData,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp)
-                        .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = PrimaryRed)
-                    } else if (error != null) {
-                        Text("Error: $error")
-                    } else if (bloodSugarData.isEmpty()) {
-                        Text("No blood sugar data available")
-                    } else {
-                        Text("Blood Sugar Chart")
-                        // We'll implement the actual chart visualization later
-                    }
-                }
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Blood sugar history section
                 Text(
                     text = "History",
                     style = MaterialTheme.typography.titleLarge,
@@ -147,7 +139,6 @@ fun BloodSugarScreen(
                         Text("No blood sugar data available")
                     }
                 } else {
-                    // Display list of blood sugar readings
                     bloodSugarData.forEach { data ->
                         BloodSugarHistoryItem(data)
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -155,7 +146,6 @@ fun BloodSugarScreen(
                 }
             }
 
-            // Loading indicator
             if (isLoading) {
                 Box(
                     modifier = Modifier
@@ -169,7 +159,6 @@ fun BloodSugarScreen(
         }
     }
 
-    // Add Blood Sugar Dialog
     if (showAddBloodSugarDialog) {
         AddBloodSugarDialog(
             onDismiss = { showAddBloodSugarDialog = false },
@@ -192,7 +181,6 @@ fun BloodSugarHistoryItem(data: com.ermek.parentwellness.data.repository.BloodSu
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Blood sugar value
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -250,7 +238,6 @@ fun AddBloodSugarDialog(
         title = { Text("Add Blood Sugar") },
         text = {
             Column {
-                // Blood sugar input
                 OutlinedTextField(
                     value = bloodSugarText,
                     onValueChange = {
@@ -270,13 +257,12 @@ fun AddBloodSugarDialog(
                         text = "Please enter a valid blood sugar value",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                    )
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Situation dropdown
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = situation,
@@ -317,7 +303,6 @@ fun AddBloodSugarDialog(
                 onClick = {
                     val bloodSugar = bloodSugarText.toIntOrNull()
 
-                    // Validate input
                     bloodSugarError = bloodSugar == null || bloodSugar < 20 || bloodSugar > 600
 
                     if (!bloodSugarError) {

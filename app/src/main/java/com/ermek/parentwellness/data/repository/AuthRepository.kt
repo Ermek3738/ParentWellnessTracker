@@ -173,6 +173,38 @@ class AuthRepository {
         }
     }
 
+    // Add this method to update user profile
+    suspend fun updateProfile(user: User): Result<User> {
+        return try {
+            val userId = auth.currentUser?.uid ?: return Result.failure(Exception("User not logged in"))
+            Log.d(TAG, "Updating profile for user: $userId")
+
+            // Create a map of fields to update
+            val updates = mutableMapOf<String, Any>(
+                "fullName" to user.fullName,
+                "gender" to user.gender,
+                "birthDate" to user.birthDate,
+                "updatedAt" to System.currentTimeMillis()
+            )
+
+            // Update in users collection
+            usersCollection.document(userId).update(updates).await()
+
+            // Update in appropriate role collection
+            if (user.isParent) {
+                parentsCollection.document(userId).update(updates).await()
+            } else {
+                caregiversCollection.document(userId).update(updates).await()
+            }
+
+            Log.d(TAG, "User profile updated successfully")
+            Result.success(user)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating user profile", e)
+            Result.failure(e)
+        }
+    }
+
     private fun handleUserData(user: User?): User? {
         if (user == null) return null
 

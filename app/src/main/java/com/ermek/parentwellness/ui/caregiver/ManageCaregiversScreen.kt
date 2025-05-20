@@ -1,12 +1,10 @@
 package com.ermek.parentwellness.ui.caregiver
 
-import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -16,15 +14,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ermek.parentwellness.data.model.User
 import com.ermek.parentwellness.ui.theme.PrimaryRed
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageCaregiversScreen(
     onNavigateBack: () -> Unit,
-    viewModel: CaregiverViewModel = viewModel()
+    viewModel: CaregiverViewModel
 ) {
     val caregivers by viewModel.caregivers.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -216,6 +215,13 @@ fun AddCaregiverDialog(
 ) {
     var email by remember { mutableStateOf("") }
     var isEmailValid by remember { mutableStateOf(true) }
+    var isButtonEnabled by remember { mutableStateOf(false) }
+
+    // Validate email and update button state on each change
+    LaunchedEffect(email) {
+        isEmailValid = email.isEmpty() || android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+        isButtonEnabled = email.isNotEmpty() && isEmailValid
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -223,7 +229,7 @@ fun AddCaregiverDialog(
         text = {
             Column {
                 Text(
-                    "Enter the email address of the person you want to add as your caregiver.",
+                    "Enter the email address of the person you want to add as your caregiver. The user must have already registered in the app.",
                     style = MaterialTheme.typography.bodyMedium
                 )
 
@@ -231,13 +237,11 @@ fun AddCaregiverDialog(
 
                 OutlinedTextField(
                     value = email,
-                    onValueChange = {
-                        email = it
-                        isEmailValid = android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() || email.isEmpty()
-                    },
+                    onValueChange = { email = it.trim() },
                     label = { Text("Email Address") },
                     isError = !isEmailValid,
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -254,11 +258,11 @@ fun AddCaregiverDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (isEmailValid && email.isNotEmpty()) {
+                    if (isButtonEnabled) {
                         onAddCaregiver(email)
                     }
                 },
-                enabled = isEmailValid && email.isNotEmpty()
+                enabled = isButtonEnabled
             ) {
                 Text("Add")
             }

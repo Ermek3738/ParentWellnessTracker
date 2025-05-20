@@ -34,9 +34,7 @@ import com.ermek.parentwellness.ui.auth.AuthState
 import com.ermek.parentwellness.ui.auth.AuthViewModel
 import com.ermek.parentwellness.ui.auth.LoginScreen
 import com.ermek.parentwellness.ui.auth.RegisterScreen
-import com.ermek.parentwellness.ui.caregiver.CaregiverDashboardScreen
-import com.ermek.parentwellness.ui.caregiver.ManageCaregiversScreen
-import com.ermek.parentwellness.ui.caregiver.ManageParentsScreen
+import com.ermek.parentwellness.ui.caregiver.*
 import com.ermek.parentwellness.ui.dashboard.DashboardScreen
 import com.ermek.parentwellness.ui.dashboard.DashboardViewModel
 import com.ermek.parentwellness.ui.emergency.EmergencyContactsScreen
@@ -51,14 +49,10 @@ import com.ermek.parentwellness.ui.profile.ProfileScreen
 import com.ermek.parentwellness.ui.profile.ProfileViewModel
 import com.ermek.parentwellness.ui.reports.ReportsScreen
 import com.ermek.parentwellness.ui.role.RoleSelectionScreen
-import com.ermek.parentwellness.ui.setup.SetupBirthdayScreen
-import com.ermek.parentwellness.ui.setup.SetupGenderScreen
-import com.ermek.parentwellness.ui.setup.SetupNameScreen
-import com.ermek.parentwellness.ui.setup.SetupViewModel
-import com.ermek.parentwellness.ui.setup.SetupWelcomeScreen
 import com.ermek.parentwellness.ui.theme.ParentWellnessTheme
 import com.ermek.parentwellness.ui.watch.WatchScreen
 import com.ermek.parentwellness.ui.watch.WatchViewModel
+import com.ermek.parentwellness.ui.settings.SettingsScreen
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
@@ -95,7 +89,6 @@ class MainActivity : ComponentActivity() {
             if (task.isSuccessful) {
                 val token = task.result
                 Log.d("FCM_TOKEN", "Current FCM token: $token")
-                // Store this token for testing
             } else {
                 Log.w("FCM_TOKEN", "Fetching FCM token failed", task.exception)
             }
@@ -118,8 +111,6 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(authState) {
                         if (authState is AuthState.Authenticated) {
                             currentUser = (authState as AuthState.Authenticated).user
-                        } else if (authState is AuthState.NeedsSetup) {
-                            currentUser = (authState as AuthState.NeedsSetup).user
                         }
                     }
 
@@ -128,17 +119,13 @@ class MainActivity : ComponentActivity() {
                         is AuthState.Authenticated -> {
                             val user = (authState as AuthState.Authenticated).user
                             if (user.isParent && user.parentIds.isNotEmpty()) {
-                                // User has both roles - show role selection
                                 "role_selection"
                             } else if (user.isParent) {
-                                // User is a parent
                                 "dashboard"
                             } else {
-                                // User is a caregiver
                                 "caregiver_dashboard"
                             }
                         }
-                        is AuthState.NeedsSetup -> "setup_welcome"
                         else -> "onboarding"
                     }
 
@@ -165,12 +152,8 @@ class MainActivity : ComponentActivity() {
                         // Onboarding Flow
                         composable("onboarding") {
                             OnboardingScreen(
-                                onNavigateToLogin = {
-                                    navController.navigate("login")
-                                },
-                                onNavigateToRegister = {
-                                    navController.navigate("register")
-                                }
+                                onNavigateToLogin = { navController.navigate("login") },
+                                onNavigateToRegister = { navController.navigate("register") }
                             )
                         }
 
@@ -178,19 +161,14 @@ class MainActivity : ComponentActivity() {
                         composable("login") {
                             LoginScreen(
                                 viewModel = authViewModel,
-                                onNavigateToRegister = {
-                                    navController.navigate("register")
-                                },
-                                onNavigateToForgotPassword = {
-                                    // TODO: Implement forgot password flow
-                                },
+                                onNavigateToRegister = { navController.navigate("register") },
+                                onNavigateToForgotPassword = { /* TODO */ },
                                 onLoginSuccess = {
                                     when (authState) {
                                         is AuthState.Authenticated -> {
                                             val user = (authState as AuthState.Authenticated).user
                                             navigateBasedOnRole(navController, user)
                                         }
-                                        is AuthState.NeedsSetup -> navController.navigate("setup_welcome")
                                         else -> {}
                                     }
                                 }
@@ -211,59 +189,7 @@ class MainActivity : ComponentActivity() {
                                             val user = (authState as AuthState.Authenticated).user
                                             navigateBasedOnRole(navController, user)
                                         }
-                                        is AuthState.NeedsSetup -> navController.navigate("setup_welcome")
                                         else -> {}
-                                    }
-                                }
-                            )
-                        }
-
-                        // Setup Flow
-                        composable("setup_welcome") {
-                            SetupWelcomeScreen(
-                                onContinue = {
-                                    navController.navigate("setup_name")
-                                }
-                            )
-                        }
-
-                        composable("setup_name") {
-                            val setupViewModel = SetupViewModel()
-                            SetupNameScreen(
-                                viewModel = setupViewModel,
-                                onBack = { navController.popBackStack() },
-                                onContinue = {
-                                    navController.navigate("setup_gender")
-                                }
-                            )
-                        }
-
-                        composable("setup_gender") {
-                            val setupViewModel = SetupViewModel()
-                            SetupGenderScreen(
-                                viewModel = setupViewModel,
-                                onBack = { navController.popBackStack() },
-                                onContinue = {
-                                    navController.navigate("setup_birthday")
-                                }
-                            )
-                        }
-
-                        composable("setup_birthday") {
-                            val setupViewModel = SetupViewModel()
-                            SetupBirthdayScreen(
-                                viewModel = setupViewModel,
-                                onBack = { navController.popBackStack() },
-                                onContinue = {
-                                    setupViewModel.completeSetup()
-                                    // After setup, navigate based on the user's role
-                                    val user = (authState as? AuthState.NeedsSetup)?.user
-                                    if (user != null) {
-                                        navigateBasedOnRole(navController, user)
-                                    } else {
-                                        navController.navigate("dashboard") {
-                                            popUpTo("onboarding") { inclusive = true }
-                                        }
                                     }
                                 }
                             )
@@ -278,32 +204,15 @@ class MainActivity : ComponentActivity() {
 
                             DashboardScreen(
                                 viewModel = dashboardViewModel,
-                                onNavigateToHeartRate = {
-                                    navController.navigate("heart_rate")
-                                },
-                                onNavigateToBloodPressure = {
-                                    navController.navigate("blood_pressure")
-                                },
-                                onNavigateToBloodSugar = {
-                                    navController.navigate("blood_sugar")
-                                },
-                                onNavigateToStepsTracker = {
-                                    navController.navigate("steps_tracker")
-                                },
-                                onNavigateToReports = {
-                                    navController.navigate("reports")
-                                },
-                                onNavigateToAlerts = {
-                                    navController.navigate("alerts")
-                                },
-                                onNavigateToProfile = {
-                                    navController.navigate("profile")
-                                },
-                                onNavigateToWatch = {
-                                    navController.navigate("watch")
-                                },
+                                onNavigateToHeartRate = { navController.navigate("heart_rate") },
+                                onNavigateToBloodPressure = { navController.navigate("blood_pressure") },
+                                onNavigateToBloodSugar = { navController.navigate("blood_sugar") },
+                                onNavigateToStepsTracker = { navController.navigate("steps_tracker") },
+                                onNavigateToReports = { navController.navigate("reports") },
+                                onNavigateToAlerts = { navController.navigate("alerts") },
+                                onNavigateToProfile = { navController.navigate("profile") },
+                                onNavigateToWatch = { navController.navigate("watch") },
                                 onSwitchToCaregiverMode = {
-                                    // Only show this option if user has caregiver relationships
                                     if (currentUser?.parentIds?.isNotEmpty() == true) {
                                         navController.navigate("caregiver_dashboard") {
                                             popUpTo("dashboard") { inclusive = true }
@@ -315,57 +224,114 @@ class MainActivity : ComponentActivity() {
 
                         // Caregiver Screens
                         composable("caregiver_dashboard") {
+                            val viewModel: CaregiverViewModel = viewModel()
                             CaregiverDashboardScreen(
-                                onNavigateToManageParents = {
-                                    navController.navigate("manage_parents")
+                                viewModel = viewModel,
+                                onNavigateToManageParents = { navController.navigate("manage_parents") },
+                                onNavigateToParentDetail = { /* handle later */ },
+                                onNavigateToHeartRate = { navController.navigate("heart_rate") },
+                                onNavigateToBloodPressure = { navController.navigate("blood_pressure") },
+                                onNavigateToBloodSugar = { navController.navigate("blood_sugar") },
+                                onNavigateToStepsTracker = { navController.navigate("steps_tracker") },
+                                onNavigateToEmergencyContact = { navController.navigate("emergency_contacts") },
+                                onNavigateToReports = {
+                                    navController.navigate("caregiver_reports") {
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
                                 },
-                                onNavigateToParentDetail = { parentId ->
-                                    // Navigate to detail screen with parentId
-                                    // You can implement this later
+                                onNavigateToAlerts = {
+                                    navController.navigate("caregiver_alerts") {
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
                                 },
-                                onNavigateToHeartRate = {
-                                    navController.navigate("heart_rate")
-                                },
-                                onNavigateToBloodPressure = {
-                                    navController.navigate("blood_pressure")
-                                },
-                                onNavigateToBloodSugar = {
-                                    navController.navigate("blood_sugar")
-                                },
-                                onNavigateToStepsTracker = {
-                                    navController.navigate("steps_tracker")
+                                onNavigateToProfile = {
+                                    navController.navigate("caregiver_profile") {
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
                                 },
                                 onSwitchToParentMode = {
-                                    // Only show this option if user is also a parent
                                     if (currentUser?.isParent == true) {
                                         navController.navigate("dashboard") {
                                             popUpTo("caregiver_dashboard") { inclusive = true }
+                                            restoreState = true
                                         }
                                     }
                                 }
                             )
                         }
 
+                        composable("caregiver_reports") {
+                            ReportsScreen(
+                                onNavigateToHeartRate = { navController.navigate("heart_rate") },
+                                onNavigateToBloodPressure = { navController.navigate("blood_pressure") },
+                                onNavigateToBloodSugar = { navController.navigate("blood_sugar") }
+                            )
+                        }
+
+                        composable("caregiver_alerts") {
+                            CaregiverAlertsScreen(
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("caregiver_profile") {
+                            CaregiverProfileScreen(
+                                onSignOut = {
+                                    authViewModel.signOut()
+                                    navController.navigate("onboarding") {
+                                        popUpTo("caregiver_dashboard") { inclusive = true }
+                                    }
+                                },
+                                onEditProfile = { navController.navigate("edit_profile") },
+                                onManageParents = { navController.navigate("manage_parents") },
+                                onSwitchRole = {
+                                    if (currentUser?.isParent == true) {
+                                        navController.navigate("dashboard") {
+                                            popUpTo("caregiver_dashboard") { inclusive = true }
+                                        }
+                                    }
+                                },
+                                showRoleSwitcher = currentUser?.isParent == true,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+
                         composable("manage_parents") {
+                            val viewModel: CaregiverViewModel = viewModel()
+
+                            // Load the necessary data in this ViewModel when it's created
+                            LaunchedEffect(Unit) {
+                                viewModel.loadParentsForCurrentUser()
+                            }
                             ManageParentsScreen(
+                                viewModel = viewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onSelectParent = { parent ->
+                                    viewModel.selectParent(parent)
                                     navController.popBackStack()
                                 }
                             )
                         }
 
                         composable("manage_caregivers") {
+                            val viewModel: CaregiverViewModel = viewModel()
+
+                            LaunchedEffect(Unit) {
+                                viewModel.loadCaregiversForCurrentUser()
+                            }
+
                             ManageCaregiversScreen(
-                                onNavigateBack = { navController.popBackStack() }
+                                onNavigateBack = { navController.popBackStack() },
+                                viewModel = viewModel  // Pass the shared viewModel
                             )
                         }
 
                         // Health Tracking Screens
                         composable("heart_rate") {
-                            val viewModel: HealthDataViewModel = viewModel(
-                                factory = factory
-                            )
+                            val viewModel: HealthDataViewModel = viewModel(factory = factory)
                             HeartRateScreen(
                                 onBack = { navController.popBackStack() },
                                 healthDataViewModel = viewModel
@@ -373,9 +339,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("blood_pressure") {
-                            val viewModel: HealthDataViewModel = viewModel(
-                                factory = factory
-                            )
+                            val viewModel: HealthDataViewModel = viewModel(factory = factory)
                             BloodPressureScreen(
                                 onBack = { navController.popBackStack() },
                                 healthDataViewModel = viewModel
@@ -383,9 +347,7 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("blood_sugar") {
-                            val viewModel: HealthDataViewModel = viewModel(
-                                factory = factory
-                            )
+                            val viewModel: HealthDataViewModel = viewModel(factory = factory)
                             BloodSugarScreen(
                                 onBack = { navController.popBackStack() },
                                 healthDataViewModel = viewModel
@@ -393,16 +355,14 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("steps_tracker") {
-                            val viewModel: HealthDataViewModel = viewModel(
-                                factory = factory
-                            )
+                            val viewModel: HealthDataViewModel = viewModel(factory = factory)
                             StepsTrackerScreen(
                                 onBack = { navController.popBackStack() },
                                 healthDataViewModel = viewModel
                             )
                         }
 
-                        // Watch Screen - Updated to use Samsung Health Sensor integration
+                        // Watch Screen
                         composable("watch") {
                             WatchScreen(
                                 viewModel = watchViewModel,
@@ -413,25 +373,20 @@ class MainActivity : ComponentActivity() {
                         // Additional Screens
                         composable("reports") {
                             ReportsScreen(
-                                onNavigateToHeartRate = {
-                                    navController.navigate("heart_rate")
-                                },
-                                onNavigateToBloodPressure = {
-                                    navController.navigate("blood_pressure")
-                                },
-                                onNavigateToBloodSugar = {
-                                    navController.navigate("blood_sugar")
-                                }
+                                onNavigateToHeartRate = { navController.navigate("heart_rate") },
+                                onNavigateToBloodPressure = { navController.navigate("blood_pressure") },
+                                onNavigateToBloodSugar = { navController.navigate("blood_sugar") }
                             )
                         }
 
                         composable("alerts") {
-                            AlertsScreen()
+                            AlertsScreen(
+                            )
                         }
 
                         // Profile Screens
                         composable("profile") {
-                            val profileViewModel = ProfileViewModel()
+                            val profileViewModel: ProfileViewModel = viewModel()
                             ProfileScreen(
                                 onSignOut = {
                                     authViewModel.signOut()
@@ -439,28 +394,21 @@ class MainActivity : ComponentActivity() {
                                         popUpTo("dashboard") { inclusive = true }
                                     }
                                 },
-                                onEditProfile = {
-                                    navController.navigate("edit_profile")
-                                },
-                                onNavigateToManageCaregivers = {
-                                    navController.navigate("manage_caregivers")
-                                },
-                                onNavigateToEmergencyContacts = {
-                                    navController.navigate("emergency_contacts")
-                                },
+                                onEditProfile = { navController.navigate("edit_profile") },
+                                onNavigateToManageCaregivers = { navController.navigate("manage_caregivers") },
+                                onNavigateToEmergencyContacts = { navController.navigate("emergency_contacts") },
+                                // Add this navigation to settings
+                                onNavigateToSettings = { navController.navigate("settings") },
                                 onSwitchRole = {
-                                    // Switch between parent and caregiver roles if user has both roles
                                     val user = currentUser
                                     if (user != null) {
                                         if (navController.currentBackStackEntry?.destination?.route == "dashboard"
                                             && user.parentIds.isNotEmpty()) {
-                                            // Currently in parent mode, switch to caregiver
                                             navController.navigate("caregiver_dashboard") {
                                                 popUpTo("dashboard") { inclusive = true }
                                             }
                                         } else if (navController.currentBackStackEntry?.destination?.route == "caregiver_dashboard"
                                             && user.isParent) {
-                                            // Currently in caregiver mode, switch to parent
                                             navController.navigate("dashboard") {
                                                 popUpTo("caregiver_dashboard") { inclusive = true }
                                             }
@@ -471,16 +419,14 @@ class MainActivity : ComponentActivity() {
                                 showRoleSwitcher = (currentUser?.isParent == true && currentUser?.parentIds?.isNotEmpty() == true)
                             )
                         }
-
                         composable("edit_profile") {
-                            val profileViewModel = ProfileViewModel()
+                            val profileViewModel: ProfileViewModel = viewModel()
                             EditProfileScreen(
-                                onNavigateBack = {
-                                    navController.popBackStack()
-                                },
+                                onNavigateBack = { navController.popBackStack() },
                                 viewModel = profileViewModel
                             )
                         }
+
                         composable("emergency_contacts") {
                             val context = LocalContext.current
                             EmergencyContactsScreen(
@@ -490,54 +436,46 @@ class MainActivity : ComponentActivity() {
                                 )
                             )
                         }
+                        composable("settings") {
+                            SettingsScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    /**
-     * Helper function to navigate based on user role
-     */
     private fun navigateBasedOnRole(navController: NavController, user: User) {
         if (user.isParent && user.parentIds.isNotEmpty()) {
-            // User has both roles - show role selection
             navController.navigate("role_selection") {
                 popUpTo("onboarding") { inclusive = true }
             }
         } else if (user.isParent) {
-            // User is a parent
             navController.navigate("dashboard") {
                 popUpTo("onboarding") { inclusive = true }
             }
         } else {
-            // User is a caregiver
             navController.navigate("caregiver_dashboard") {
                 popUpTo("onboarding") { inclusive = true }
             }
         }
     }
 
-    /**
-     * Set up Sensor sync worker for background processing
-     */
     private fun setupSensorSyncWorker() {
-        // Only set up the worker if the user is logged in
         if (auth.currentUser != null) {
-            // Define work constraints
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
 
-            // Create periodic work request - sync every 30 minutes
             val workRequest = PeriodicWorkRequestBuilder<SensorSyncWorker>(
                 30, TimeUnit.MINUTES,
-                5, TimeUnit.MINUTES // Flex period
+                5, TimeUnit.MINUTES
             )
                 .setConstraints(constraints)
                 .build()
 
-            // Enqueue the work
             WorkManager.getInstance(this).enqueueUniquePeriodicWork(
                 "samsung_health_sensor_sync",
                 ExistingPeriodicWorkPolicy.UPDATE,
@@ -546,42 +484,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Handle activity resume lifecycle event
-     * Refresh Samsung Health data when the activity is resumed
-     */
     override fun onResume() {
         super.onResume()
-        // Refresh watch data when activity is resumed
         watchViewModel.refreshWatchData()
     }
 
-    /**
-     * Clean up resources when activity is destroyed
-     */
     override fun onDestroy() {
         super.onDestroy()
-        // Clean up activity reference
         ActivityProvider.clearCurrentActivity(this)
-
-        // Clean up Samsung Health Sensor Manager resources
         samsungHealthSensorManager.cleanup()
     }
 }
 
-/**
- * Utility class to hold the current activity reference
- * Used for Samsung Health SDK resolution
- */
 object ActivityProvider {
     private var currentActivity: ComponentActivity? = null
 
     fun setCurrentActivity(activity: ComponentActivity) {
         currentActivity = activity
-    }
-
-    fun getCurrentActivity(): ComponentActivity? {
-        return currentActivity
     }
 
     fun clearCurrentActivity(activity: ComponentActivity) {

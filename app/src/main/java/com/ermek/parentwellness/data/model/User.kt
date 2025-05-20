@@ -22,14 +22,15 @@ data class User(
     val phoneNumber: String = "",
     val profilePictureUrl: String = "",
 
-    // Relationship fields
+    // Relationship fields - these need to be mutable since they're updated
     var caregiverIds: List<String> = emptyList(),
     var parentIds: List<String> = emptyList(),
 
     // Health data permissions - for caregivers to access parent data
     val healthDataPermissions: Map<String, List<String>> = mapOf(),
 
-    // Emergency contact information
+    // Emergency contact information - use only @get: for immutable property
+    @get:PropertyName("emergencyContacts")
     val emergencyContacts: List<EmergencyContact> = emptyList(),
 
     val createdAt: Long = 0,
@@ -53,5 +54,8 @@ data class EmergencyContact(
     val phoneNumber: String = "",
     val relationship: String = "",
     val priority: Int = 0,
+
+    // Only use @get: for the immutable property
+    @get:PropertyName("isNotified")
     val isNotified: Boolean = true
 )

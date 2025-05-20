@@ -6,7 +6,7 @@ import com.google.firebase.firestore.PropertyName
  * Data class representing a health metric measurement
  */
 data class HealthData(
-    var id: String = "", // Firestore document ID
+    var id: String = "",
     val userId: String = "", // User who owns this data
 
     @get:PropertyName("metricType")
@@ -50,7 +50,6 @@ data class HealthData(
 
         // Data sources
         const val SOURCE_MANUAL = "manual"
-        const val SOURCE_SAMSUNG_HEALTH = "samsung_health"
         const val SOURCE_SIMULATOR = "simulator"
 
         // Helper functions

@@ -3,7 +3,6 @@ package com.ermek.parentwellness.ui.health
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -18,8 +17,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ermek.parentwellness.ui.components.BloodPressureChart
 import com.ermek.parentwellness.ui.components.TimeRangeSelector
 import com.ermek.parentwellness.ui.theme.PrimaryRed
+import com.ermek.parentwellness.ui.components.SimulatedDataControls
+import com.ermek.parentwellness.data.model.HealthData
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -78,7 +80,11 @@ fun BloodPressureScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
-                // Average stats
+                SimulatedDataControls(
+                    viewModel = healthDataViewModel,
+                    metricType = HealthData.TYPE_BLOOD_PRESSURE
+                )
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -102,7 +108,6 @@ fun BloodPressureScreen(
                     avgPulse?.let { StatisticItem(value = it.toString(), label = "Pulse") }
                 }
 
-                // Time range selector
                 TimeRangeSelector(
                     onRangeSelected = { timeRange ->
                         healthDataViewModel.loadDataByTimeRange(timeRange)
@@ -111,29 +116,15 @@ fun BloodPressureScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Chart placeholder
-                Box(
+                BloodPressureChart(
+                    data = bloodPressureData,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp)
-                        .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = PrimaryRed)
-                    } else if (error != null) {
-                        Text("Error: $error")
-                    } else if (bloodPressureData.isEmpty()) {
-                        Text("No blood pressure data available")
-                    } else {
-                        Text("Blood Pressure Chart")
-                        // We'll implement the actual chart visualization later
-                    }
-                }
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Blood pressure history section
                 Text(
                     text = "History",
                     style = MaterialTheme.typography.titleLarge,
@@ -152,7 +143,6 @@ fun BloodPressureScreen(
                         Text("No blood pressure data available")
                     }
                 } else {
-                    // Display list of blood pressure readings
                     bloodPressureData.forEach { data ->
                         BloodPressureHistoryItem(data)
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -160,7 +150,6 @@ fun BloodPressureScreen(
                 }
             }
 
-            // Loading indicator
             if (isLoading) {
                 Box(
                     modifier = Modifier
@@ -174,7 +163,6 @@ fun BloodPressureScreen(
         }
     }
 
-    // Add Blood Pressure Dialog
     if (showAddBloodPressureDialog) {
         AddBloodPressureDialog(
             onDismiss = { showAddBloodPressureDialog = false },
@@ -197,7 +185,6 @@ fun BloodPressureHistoryItem(data: com.ermek.parentwellness.data.repository.Bloo
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Blood pressure values stacked
         Column(
             modifier = Modifier
                 .width(60.dp),
@@ -280,7 +267,6 @@ fun AddBloodPressureDialog(
         title = { Text("Add Blood Pressure") },
         text = {
             Column {
-                // Systolic input
                 OutlinedTextField(
                     value = systolicText,
                     onValueChange = {
@@ -300,13 +286,12 @@ fun AddBloodPressureDialog(
                         text = "Please enter a valid systolic value",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                    )
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Diastolic input
                 OutlinedTextField(
                     value = diastolicText,
                     onValueChange = {
@@ -326,13 +311,12 @@ fun AddBloodPressureDialog(
                         text = "Please enter a valid diastolic value",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                    )
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Pulse input (optional)
                 OutlinedTextField(
                     value = pulseText,
                     onValueChange = {
@@ -352,13 +336,12 @@ fun AddBloodPressureDialog(
                         text = "Please enter a valid pulse value",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                    )
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Situation dropdown
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = situation,
@@ -401,7 +384,6 @@ fun AddBloodPressureDialog(
                     val diastolic = diastolicText.toIntOrNull()
                     val pulse = pulseText.takeIf { it.isNotEmpty() }?.toIntOrNull()
 
-                    // Validate inputs
                     systolicError = systolic == null || systolic < 50 || systolic > 250
                     diastolicError = diastolic == null || diastolic < 30 || diastolic > 150
                     pulseError = pulse != null && (pulse < 30 || pulse > 220)
